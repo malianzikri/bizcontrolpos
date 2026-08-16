@@ -4,6 +4,6 @@
 window.BIZCONTROL_CONFIG = window.BIZCONTROL_CONFIG || {
   supabaseUrl: 'https://ntdukpdtsguhohbijcep.supabase.co',
   publishableKey: 'sb_publishable_Ey5J6AS7k3nIDnzT-s9hVw_Iy8mYQ1i',
-  supportWhatsApp: '...',
-  turnstileSiteKey: ''
+  turnstileSiteKey: '',
+  supportWhatsApp: '628117199210'
 };
