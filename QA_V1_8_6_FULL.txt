@@ -1,0 +1,44 @@
+BizControl Online V1.8.6 — Combined QA
+
+Result: 53/53 PASS
+
+UX / Production Final checks: 18/18 PASS
+- JavaScript syntax
+- Supabase config deployment-only
+- legacy browser cloud config purge
+- Login/Daftar landing
+- one-click local Demo
+- no-session auth flow
+- Demo -> Auth flow
+- Reset Demo
+- Logout -> auth landing
+- Logout outside Settings / in topbar
+- Cloud config managed-only
+- PWA cache V1.8.6
+- version markers
+- no service-role credential in runtime config
+
+Multi-Item Cashier + migration checks: 35/35 PASS
+- one invoice with 2 items
+- aggregate invoice total
+- stock decremented per item
+- edit multi-item invoice and stock reconciliation
+- invoice prints all items
+- delivery note prints all items and no prices
+- duplicate product row rejected
+- insufficient stock rejected
+- mobile cart no horizontal overflow
+- logout hidden in Demo and shown in Cloud topbar
+- no browser page error in QA scenario
+- sale_items migration/backfill
+- legacy stock triggers removed
+- item stock trigger enabled
+- multi-item create/update/list RPCs
+- HPP masking by role
+- product history protection via sale_items
+- item audit trigger
+- migration BEGIN/COMMIT present
+
+Single-file Demo smoke test: PASS
+
+Important: browser/static QA does not replace executing the SQL migration on the user's real Supabase staging project. Apply migration to staging and run real Cloud/role/concurrency tests before production rollout.

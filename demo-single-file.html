@@ -4,10 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#143c35" />
-  <meta name="description" content="BizControl Online V1.8.5 Production Final - business control UMKM dengan cloud account, one-click demo sandbox, role, audit, dan dokumen." />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob:; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; object-src 'none'; base-uri 'self'; form-action 'self'">
-  
-  
+  <meta name="description" content="BizControl Online V1.8.6 Multi-Item Cashier - business control UMKM dengan cloud account, one-click demo sandbox, role, audit, dan dokumen." />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
   <style>
 :root{
   --navy:#17324d;--navy2:#0f263a;--green:#1f7a5a;--green2:#143c35;--mint:#eaf3f0;
@@ -229,6 +227,13 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
 .sidebar-footer #openAuthBtn{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.18);color:#fff}
 @media(max-width:760px){.auth-card{padding:22px 18px}.auth-shell{padding:12px}.auth-card h1{font-size:27px}}
 
+
+/* V1.8.6 — Multi-item cashier */
+.sale-cart-block{border:1px solid var(--border);border-radius:16px;padding:14px;background:#f9fbfa}.sale-cart-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.sale-cart-head h3{margin:0;font-size:14px}.sale-cart-head small{display:block;color:var(--muted);margin-top:3px}.sale-cart-rows{display:grid;gap:9px}.sale-cart-row{display:grid;grid-template-columns:34px minmax(180px,1.8fr) 105px minmax(100px,.8fr) minmax(110px,.8fr) 34px;gap:9px;align-items:end;background:white;border:1px solid var(--border);border-radius:12px;padding:10px}.sale-cart-row label{margin:0}.cart-index{width:28px;height:28px;border-radius:9px;background:#edf6f2;color:var(--green2);display:grid;place-items:center;font-weight:800;align-self:center}.cart-meta{display:grid;gap:2px;align-self:center}.cart-meta span{font-weight:800}.cart-meta small{color:var(--muted)}.cart-subtotal{align-self:center;text-align:right}.cart-remove{width:32px;height:32px;border-radius:9px;border:1px solid #f2c7c7;background:#fff5f5;color:#b42318;font-size:20px;line-height:1}.cart-remove:disabled{opacity:.35;cursor:not-allowed}.sale-cart-form .payment-status-box{margin-top:2px}
+@media(max-width:760px){.sale-cart-head{align-items:flex-start;flex-direction:column}.sale-cart-head .soft-btn{width:100%}.sale-cart-row{grid-template-columns:28px 1fr 82px 32px;align-items:end}.sale-cart-row label:first-of-type{grid-column:2/4}.sale-cart-row label:nth-of-type(2){grid-column:2}.cart-meta{grid-column:3}.cart-subtotal{grid-column:2/4;text-align:left;padding-top:3px}.cart-remove{grid-column:4;grid-row:1/3;align-self:center}.top-actions #logoutBtn{padding-inline:10px}}
+/* V1.8.6: keep the account logout action reachable on mobile; .hidden still wins when not in Cloud mode. */
+@media(max-width:760px){.top-actions #logoutBtn:not(.hidden){display:inline-flex!important;align-items:center;justify-content:center}}
+
 </style>
   <title>BizControl Online</title>
 </head>
@@ -263,7 +268,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">B</div>
-        <div><strong>BizControl</strong><span>ONLINE V1.8.5</span></div>
+        <div><strong>BizControl</strong><span>ONLINE V1.8.6</span></div>
       </div>
       <div class="business-box">
         <span>Bisnis aktif</span>
@@ -285,6 +290,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
           <h1 id="pageTitle">Dashboard</h1>
         </div>
         <div class="top-actions">
+          <button id="logoutBtn" class="ghost hidden">↪ Keluar</button>
           <button id="syncNowBtn" class="ghost">↻ Sinkronkan</button>
           <button id="quickSaleBtn" class="primary">+ Penjualan</button>
         </div>
@@ -300,7 +306,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <div id="modalCard" class="modal-card"></div>
   </div>
 
-  <script>window.BIZCONTROL_CONFIG = {supabaseUrl:'',publishableKey:'',turnstileSiteKey:''};</script>
+  <script>window.BIZCONTROL_CONFIG={supabaseUrl:"",publishableKey:"",turnstileSiteKey:""};</script>
   <script>
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -348,13 +354,20 @@ const defaultState = () => ({
     {id:'p4',business_id:'demo-business',sku:'JASA-01',name:'Jasa Instalasi',category:'Jasa',unit:'paket',cost:120000,price:250000,stock:999,min_stock:0},
   ],
   sales:[
-    {id:'s1',business_id:'demo-business',date:today(),invoice_no:'INV-001',customer:'Rina',customer_phone:'0812-1111-2222',customer_address:'Jl. Anggrek No. 12, Palembang',notes:'Terima kasih atas pembelian Anda.',product_id:'p1',product_name:'Produk A',qty:2,unit_price:75000,unit_cost:45000,discount:0,total:150000,gross_profit:60000,payment_method:'QRIS',paid_amount:150000},
+    {id:'s1',business_id:'demo-business',date:today(),invoice_no:'INV-001',delivery_no:'SJ-001',customer:'Rina',customer_phone:'0812-1111-2222',customer_address:'Jl. Anggrek No. 12, Palembang',notes:'Terima kasih atas pembelian Anda.',product_id:'p1',product_name:'Produk A +1 item',qty:3,unit_price:75000,unit_cost:45000,discount:0,total:260000,gross_profit:100000,payment_method:'QRIS',paid_amount:260000},
     {id:'s2',business_id:'demo-business',date:today(),invoice_no:'INV-002',customer:'Andi',customer_phone:'0813-2222-3333',customer_address:'Jl. Melati No. 8, Palembang',notes:'',product_id:'p2',product_name:'Produk B',qty:1,unit_price:110000,unit_cost:70000,discount:0,total:110000,gross_profit:40000,payment_method:'Cash',paid_amount:110000},
     {id:'s3',business_id:'demo-business',date:new Date(Date.now()-86400000).toISOString().slice(0,10),invoice_no:'INV-003',customer:'Budi',customer_phone:'0812-4444-5555',customer_address:'Jakabaring, Palembang',notes:'Jasa dijadwalkan sesuai kesepakatan.',product_id:'p4',product_name:'Jasa Instalasi',qty:1,unit_price:250000,unit_cost:120000,discount:20000,total:230000,gross_profit:110000,payment_method:'Transfer',paid_amount:230000},
     {id:'s4',business_id:'demo-business',date:new Date(Date.now()-2*86400000).toISOString().slice(0,10),invoice_no:'INV-004',customer:'Maya',customer_phone:'0813-7777-8888',customer_address:'Plaju, Palembang',notes:'Pembayaran sebagian.',product_id:'p3',product_name:'Produk C',qty:3,unit_price:55000,unit_cost:30000,discount:5000,total:160000,gross_profit:70000,payment_method:'Tempo',paid_amount:100000},
   ],
+  saleItems:[
+    {id:'si1',business_id:'demo-business',sale_id:'s1',line_no:1,product_id:'p1',product_name:'Produk A',unit:'pcs',qty:2,unit_price:75000,unit_cost:45000,line_total:150000,line_gross_profit:60000},
+    {id:'si2',business_id:'demo-business',sale_id:'s1',line_no:2,product_id:'p2',product_name:'Produk B',unit:'pcs',qty:1,unit_price:110000,unit_cost:70000,line_total:110000,line_gross_profit:40000},
+    {id:'si3',business_id:'demo-business',sale_id:'s2',line_no:1,product_id:'p2',product_name:'Produk B',unit:'pcs',qty:1,unit_price:110000,unit_cost:70000,line_total:110000,line_gross_profit:40000},
+    {id:'si4',business_id:'demo-business',sale_id:'s3',line_no:1,product_id:'p4',product_name:'Jasa Instalasi',unit:'paket',qty:1,unit_price:250000,unit_cost:120000,line_total:250000,line_gross_profit:130000},
+    {id:'si5',business_id:'demo-business',sale_id:'s4',line_no:1,product_id:'p3',product_name:'Produk C',unit:'pcs',qty:3,unit_price:55000,unit_cost:30000,line_total:165000,line_gross_profit:75000},
+  ],
   payments:[
-    {id:'pay1',business_id:'demo-business',sale_id:'s1',payment_no:1,payment_date:today(),amount:150000,method:'QRIS',notes:'Pembayaran transaksi',created_at:new Date().toISOString()},
+    {id:'pay1',business_id:'demo-business',sale_id:'s1',payment_no:1,payment_date:today(),amount:260000,method:'QRIS',notes:'Pembayaran transaksi',created_at:new Date().toISOString()},
     {id:'pay2',business_id:'demo-business',sale_id:'s2',payment_no:1,payment_date:today(),amount:110000,method:'Cash',notes:'Pembayaran transaksi',created_at:new Date().toISOString()},
     {id:'pay3',business_id:'demo-business',sale_id:'s3',payment_no:1,payment_date:new Date(Date.now()-86400000).toISOString().slice(0,10),amount:230000,method:'Transfer',notes:'Pembayaran transaksi',created_at:new Date(Date.now()-86400000).toISOString()},
     {id:'pay4',business_id:'demo-business',sale_id:'s4',payment_no:1,payment_date:new Date(Date.now()-2*86400000).toISOString().slice(0,10),amount:100000,method:'Transfer',notes:'Pembayaran sebagian',created_at:new Date(Date.now()-2*86400000).toISOString()},
@@ -377,6 +390,13 @@ function loadLocal(){
     const raw=localStorage.getItem('bizcontrol_v1');
     const data=raw ? {...defaultState(),...JSON.parse(raw)} : defaultState();
     data.payments=Array.isArray(data.payments)?data.payments:[];
+    data.saleItems=Array.isArray(data.saleItems)?data.saleItems:[];
+    // Upgrade transaksi single-item lama menjadi sale_items lokal agar invoice lama tetap kompatibel.
+    (data.sales||[]).forEach(sale=>{
+      if(data.saleItems.some(i=>i.sale_id===sale.id&&i.business_id===sale.business_id))return;
+      const prod=(data.products||[]).find(p=>p.id===sale.product_id)||{};
+      data.saleItems.push({id:uid(),business_id:sale.business_id,sale_id:sale.id,line_no:1,product_id:sale.product_id,product_name:sale.product_name||prod.name||'Produk',unit:prod.unit||'pcs',qty:Number(sale.qty||0),unit_price:Number(sale.unit_price||0),unit_cost:Number(sale.unit_cost||0),line_total:Number(sale.qty||0)*Number(sale.unit_price||0),line_gross_profit:Number(sale.qty||0)*(Number(sale.unit_price||0)-Number(sale.unit_cost||0))});
+    });
     // Upgrade data lama V1.5: setiap transaksi yang sudah punya paid_amount dibuatkan 1 riwayat pembayaran awal.
     (data.sales||[]).forEach(sale=>{
       const has=data.payments.some(p=>p.sale_id===sale.id&&p.business_id===sale.business_id);
@@ -396,6 +416,20 @@ function businessData(list){ return list.filter(x=>x.business_id===state.current
 function activeBusiness(){ return state.businesses.find(b=>b.id===state.currentBusinessId) || state.businesses[0]; }
 function paymentsForSale(saleId){ return businessData(state.payments||[]).filter(p=>p.sale_id===saleId).slice().sort((a,b)=>Number(a.payment_no||0)-Number(b.payment_no||0)||String(a.payment_date||'').localeCompare(String(b.payment_date||''))||String(a.created_at||'').localeCompare(String(b.created_at||''))); }
 function recalcLocalSalePaid(saleId){ const sale=state.sales.find(s=>s.id===saleId&&s.business_id===state.currentBusinessId); if(!sale)return; sale.paid_amount=Math.min(Number(sale.total||0),paymentsForSale(saleId).reduce((a,p)=>a+Number(p.amount||0),0)); }
+
+function itemsForSale(saleId){
+  const rows=(state.saleItems||[]).filter(x=>x.sale_id===saleId&&x.business_id===state.currentBusinessId).slice().sort((a,b)=>Number(a.line_no||0)-Number(b.line_no||0));
+  if(rows.length)return rows;
+  const sale=state.sales.find(s=>s.id===saleId&&s.business_id===state.currentBusinessId);
+  if(!sale)return [];
+  const p=state.products.find(x=>x.id===sale.product_id)||{};
+  return [{id:`legacy-${sale.id}`,business_id:sale.business_id,sale_id:sale.id,line_no:1,product_id:sale.product_id,product_name:sale.product_name,unit:p.unit||'pcs',qty:Number(sale.qty||0),unit_price:Number(sale.unit_price||0),unit_cost:Number(sale.unit_cost||0),line_total:Number(sale.qty||0)*Number(sale.unit_price||0),line_gross_profit:Number(sale.qty||0)*(Number(sale.unit_price||0)-Number(sale.unit_cost||0))}];
+}
+function saleItemsLabel(sale){
+  const rows=itemsForSale(sale.id); if(!rows.length)return sale.product_name||'-';
+  return rows.length===1?(rows[0].product_name||sale.product_name||'-'):`${rows[0].product_name||'Barang'} +${rows.length-1} item`;
+}
+function saleItemsQty(sale){ const rows=itemsForSale(sale.id); return rows.length?rows.reduce((a,x)=>a+Number(x.qty||0),0):Number(sale.qty||0); }
 
 function renderNav(){
   const visible=NAV.filter(n=>can(NAV_PERMISSION[n.id]));
@@ -463,6 +497,7 @@ function render(){
   $('#quickSaleBtn')?.classList.toggle('hidden',!can('sales_create'));
   $('#newBusinessBtn')?.classList.toggle('hidden',state.mode==='cloud'&&!state.session);
   $('#openAuthBtn')?.classList.toggle('hidden',state.mode==='cloud');
+  $('#logoutBtn')?.classList.toggle('hidden',state.mode!=='cloud');
   bindPageActions();
   enhanceResponsiveTables($('#pageContent'));
 }
@@ -472,8 +507,8 @@ function metrics(){
   const currentMonth=new Date().toISOString().slice(0,7);
   const mSales=sales.filter(s=>monthKey(s.date)===currentMonth), mExp=expenses.filter(e=>monthKey(e.date)===currentMonth);
   const revenue=mSales.reduce((a,s)=>a+Number(s.total||0),0);
-  const hpp=mSales.reduce((a,s)=>a+(Number(s.unit_cost||0)*Number(s.qty||0)),0);
   const gross=mSales.reduce((a,s)=>a+Number(s.gross_profit||0),0);
+  const hpp=Math.max(0,revenue-gross);
   const exp=mExp.reduce((a,e)=>a+Number(e.amount||0),0);
   const net=gross-exp;
   const receivable=sales.reduce((a,s)=>a+Math.max(Number(s.total||0)-Number(s.paid_amount||0),0),0);
@@ -524,9 +559,9 @@ function renderSales(){
 function salesTable(sales,title){
   if(!sales.length) return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3></div><div class="empty">Belum ada transaksi.</div></div>`;
   if(currentRole()==='warehouse'){
-    return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris fulfilment</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>HP</th><th>Tujuan</th><th>Produk</th><th>Qty</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>`<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_phone||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td><div class="row-actions">${can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Surat Jalan</button>`:'—'}</div></td></tr>`).join('')}</tbody></table></div></div>`;
+    return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris fulfilment</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>HP</th><th>Tujuan</th><th>Produk</th><th>Qty</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>`<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_phone||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td><div class="row-actions">${can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Surat Jalan</button>`:'—'}</div></td></tr>`).join('')}</tbody></table></div></div>`;
   }
-  return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${escapeAttr(s.id)}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${escapeAttr(s.id)}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${escapeAttr(s.id)}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
+  return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${escapeAttr(s.id)}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${escapeAttr(s.id)}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${escapeAttr(s.id)}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
 }
 
 function renderProducts(){
@@ -567,7 +602,7 @@ function auditActionLabel(action){ return ({CREATE:'Tambah',UPDATE:'Edit',DELETE
 function auditActionClass(action){ return action==='DELETE'?'bad':action==='UPDATE'?'warn':action==='SECURITY'?'info':'good'; }
 function auditActor(log){ return log.actor_email || log.actor_name || (state.mode==='cloud'?'User Cloud':'Demo Owner'); }
 function auditDateTime(v){ if(!v)return'-'; const d=new Date(v); return d.toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'})+' · '+d.toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}); }
-function auditFieldMap(){ return {date:'Tanggal',invoice_no:'Invoice',customer:'Customer',product_name:'Produk',qty:'Qty',unit_price:'Harga/Unit',unit_cost:'HPP/Unit',discount:'Diskon',total:'Total',paid_amount:'Dibayar',payment_method:'Metode Bayar',sku:'SKU',name:'Nama',category:'Kategori',unit:'Satuan',cost:'HPP / Modal',price:'Harga Jual',stock:'Stok',min_stock:'Min Stok',customer_phone:'No. HP Customer',customer_address:'Alamat / Tujuan',notes:'Catatan',description:'Deskripsi',amount:'Nilai Biaya',address:'Alamat Usaha',phone:'Telepon / WhatsApp',email:'Email',city:'Kota',document_footer:'Footer Dokumen',payment_date:'Tanggal Bayar',payment_no:'Pembayaran Ke',method:'Metode Pembayaran',sale_id:'Invoice Ref',receipt_no:'No. Kwitansi',delivery_no:'No. Surat Jalan',client_request_id:'Request ID',role:'Role',email:'Email',configured:'Security Key'}; }
+function auditFieldMap(){ return {date:'Tanggal',invoice_no:'Invoice',customer:'Customer',product_name:'Produk',qty:'Qty',unit_price:'Harga/Unit',unit_cost:'HPP/Unit',discount:'Diskon',total:'Total',paid_amount:'Dibayar',payment_method:'Metode Bayar',sku:'SKU',name:'Nama',category:'Kategori',unit:'Satuan',cost:'HPP / Modal',price:'Harga Jual',stock:'Stok',min_stock:'Min Stok',customer_phone:'No. HP Customer',customer_address:'Alamat / Tujuan',notes:'Catatan',description:'Deskripsi',amount:'Nilai Biaya',address:'Alamat Usaha',phone:'Telepon / WhatsApp',email:'Email',city:'Kota',document_footer:'Footer Dokumen',payment_date:'Tanggal Bayar',payment_no:'Pembayaran Ke',method:'Metode Pembayaran',sale_id:'Invoice Ref',receipt_no:'No. Kwitansi',delivery_no:'No. Surat Jalan',line_no:'Baris',line_total:'Subtotal Item',line_gross_profit:'Laba Kotor Item',client_request_id:'Request ID',role:'Role',email:'Email',configured:'Security Key'}; }
 function auditFormatValue(key,value){
   if(value===null||value===undefined||value==='') return '—';
   if(['unit_price','unit_cost','discount','total','paid_amount','cost','price','amount','gross_profit'].includes(key)) return rupiah(value);
@@ -663,7 +698,7 @@ function renderTeam(){
 function renderSettingsPage(){
   const canEdit=can('business_edit');
   return `<div class="panel">
-    <div class="setting-block"><div class="status-row"><div><h3>Akun & Role</h3><div class="muted">${state.mode==='cloud'?escapeHtml(state.session?.user?.email||'User cloud'):'Mode Demo — tanpa login'}</div></div>${roleBadge()}</div>${state.mode==='cloud'?'<button class="ghost" data-action="logout">Keluar dari Akun</button>':'<button class="soft-btn" data-action="open-auth">Masuk / Buat Akun</button>'}</div>
+    <div class="setting-block"><div class="status-row"><div><h3>Akun & Role</h3><div class="muted">${state.mode==='cloud'?escapeHtml(state.session?.user?.email||'User cloud'):'Mode Demo — tanpa login'}</div></div>${roleBadge()}</div>${state.mode==='local'?'<button class="soft-btn" data-action="open-auth">Masuk / Buat Akun</button>':''}</div>
     ${state.mode==='local'?`<div class="demo-security-warning"><b>MODE DEMO</b><span>Sandbox simulasi tanpa login. Data hanya tersimpan di browser dan tidak masuk ke database cloud. Jangan masukkan data bisnis/customer asli.</span></div><div class="setting-block"><h3>Kontrol Demo</h3><p class="muted">Kembalikan semua data simulasi ke kondisi awal kapan saja.</p><div class="toolbar-left"><button class="ghost" data-action="reset-demo">Reset Data Demo</button><button class="primary" data-action="open-auth">Buat Akun Gratis / Masuk</button></div></div><div class="setting-block"><h3>Preview Role Demo</h3><p class="muted">Uji tampilan dan menu untuk role berbeda.</p><div class="segmented role-preview">${Object.keys(ROLE_LABELS).map(r=>`<button class="segment ${currentRole()===r?'active':''}" data-action="preview-role" data-role="${r}">${ROLE_LABELS[r]}</button>`).join('')}</div></div>`:''}
     <div class="setting-block"><div class="status-row"><div><h3>Mode Data</h3><div class="muted">${state.mode==='cloud'?'Cloud BizControl — data tersimpan dan sinkron antar perangkat':'Demo Sandbox — data simulasi hanya di browser ini'}</div></div><span class="pill ${state.mode==='cloud'?'good':'warn'}">${state.mode==='cloud'?'CLOUD':'DEMO'}</span></div></div>
     ${canEdit?`<div class="setting-block"><h3>Profil & Kontrol Bisnis</h3><p class="muted">Profil dokumen dan kebijakan stok.</p><div class="status-row"><span class="micro">${escapeHtml(activeBusiness()?.address||'Alamat bisnis belum diatur')} · Stok minus: <b>${activeBusiness()?.allow_negative_stock?'Diizinkan':'Diblokir'}</b></span><button class="soft-btn" data-action="business-profile">Atur Profil & Stok</button></div></div>`:''}
@@ -673,7 +708,7 @@ function renderSettingsPage(){
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
     ${can('export')||state.mode==='local'?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.5 Production Final</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.6 Multi-Item Cashier</span></div></div>
   </div>`;
 }
 
@@ -774,10 +809,10 @@ function openDaySalesModal(dateStr){
   const targetDate=dateStr||today();
   const list=m.sales.filter(s=>s.date===targetDate).sort((a,b)=>String(a.invoice_no).localeCompare(String(b.invoice_no)));
   if(warehouse){
-    openModal(`<div class="modal-title"><h2>Pengiriman Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi / pengiriman',num(list.length))}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>Tujuan</th><th>Produk</th><th>Qty</th></tr></thead><tbody>${list.map(s=>`<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`); return;
+    openModal(`<div class="modal-title"><h2>Pengiriman Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi / pengiriman',num(list.length))}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>Tujuan</th><th>Produk</th><th>Qty</th></tr></thead><tbody>${list.map(s=>`<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`); return;
   }
   const total=list.reduce((a,s)=>a+Number(s.total||0),0); const paid=list.reduce((a,s)=>a+Number(s.paid_amount||0),0); const gp=list.reduce((a,s)=>a+Number(s.gross_profit||0),0);
-  openModal(`<div class="modal-title"><h2>Detail Omzet Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi',num(list.length))}${summaryStat('Omzet',rupiah(total))}${summaryStat('Dibayar',rupiah(paid))}${canSeeFinancial()?summaryStat('Laba kotor',rupiah(gp)):''}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Status</th></tr></thead><tbody>${list.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);return `<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`);
+  openModal(`<div class="modal-title"><h2>Detail Omzet Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi',num(list.length))}${summaryStat('Omzet',rupiah(total))}${summaryStat('Dibayar',rupiah(paid))}${canSeeFinancial()?summaryStat('Laba kotor',rupiah(gp)):''}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Status</th></tr></thead><tbody>${list.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);return `<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td class="money">${rupiah(s.total)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`);
 }
 function openHealthSummaryModal(){
   const m=metrics();
@@ -811,55 +846,74 @@ function openSaleModal(saleId=null){
   const existing=saleId?state.sales.find(x=>x.id===saleId&&x.business_id===state.currentBusinessId):null;
   const editing=Boolean(existing);
   const submissionRequestId=existing?.client_request_id||newClientRequestId();
-  const selectedProductId=existing?.product_id||products[0]?.id;
+  const existingItems=editing?itemsForSale(existing.id):[];
+  let cart=(existingItems.length?existingItems:[{product_id:products[0].id,qty:1}]).map((x,i)=>({product_id:x.product_id,qty:Number(x.qty||1),unit_price:Number(x.unit_price||0),unit_cost:Number(x.unit_cost||0),line_no:i+1}));
   const payMethods=['Cash','Transfer','QRIS','E-Wallet','Tempo'];
   openModal(`<div class="modal-title"><h2>${editing?'Edit Penjualan':'Penjualan Baru'}</h2><button class="modal-close">×</button></div>
-  <form id="saleForm" class="form-grid">
+  <form id="saleForm" class="form-grid sale-cart-form">
     <label>Tanggal<input name="date" type="date" value="${escapeAttr(existing?.date||today())}" required></label>
-    <label>No. Invoice<input name="invoice_no" value="${escapeAttr(existing?.invoice_no||'Otomatis saat disimpan')}" readonly><small class="micro">Nomor unik otomatis.</small></label>
+    <label>No. Invoice<input name="invoice_no" value="${escapeAttr(existing?.invoice_no||'Otomatis saat disimpan')}" readonly><small class="micro">Satu invoice dapat berisi banyak barang.</small></label>
     <label>Customer<input name="customer" value="${escapeAttr(existing?.customer||'')}" placeholder="Nama customer"></label>
     <label>No. HP Customer<input name="customer_phone" value="${escapeAttr(existing?.customer_phone||'')}" placeholder="08xxxxxxxxxx"></label>
     <label class="span-2">Alamat / Tujuan Pengiriman<textarea name="customer_address" rows="2" placeholder="Opsional — dipakai pada Surat Jalan">${escapeHtml(existing?.customer_address||'')}</textarea></label>
-    <label>Produk<select name="product_id" id="saleProduct">${products.map(p=>`<option value="${p.id}" ${p.id===selectedProductId?'selected':''}>${escapeHtml(p.sku)} — ${escapeHtml(p.name)}</option>`).join('')}</select></label>
-    <label>Qty<input name="qty" type="number" min="0.01" step="0.01" value="${existing?.qty??1}" required></label>
-    <label>Diskon<input name="discount" type="number" min="0" value="${existing?.discount??0}"></label>
-    <label>Metode Bayar${editing?`<input value="${escapeAttr(existing?.payment_method||'Lihat Riwayat Pembayaran')}" readonly><small class="micro">Metode transaksi awal. Pembayaran berikutnya dicatat terpisah.</small>`:`<select name="payment_method" id="salePaymentMethod">${payMethods.map(v=>`<option ${v===(existing?.payment_method||'Cash')?'selected':''}>${v}</option>`).join('')}</select>`}</label>
-    <label>${editing?'Sudah Dibayar':'Pembayaran Awal'}<input ${editing?'':'name="paid_amount"'} id="salePaidAmount" type="number" min="0" value="${editing?Number(existing?.paid_amount||0):''}" placeholder="Tempo kosong = Rp0" ${editing?'readonly':''}><small class="micro">${editing?'Dihitung otomatis dari Riwayat Pembayaran.':'Jika ada DP/pembayaran awal, sistem otomatis membuat Riwayat Pembayaran #1.'}</small></label>
+    <div class="span-2 sale-cart-block">
+      <div class="sale-cart-head"><div><h3>Barang / Jasa</h3><small>Tambahkan beberapa item ke invoice yang sama.</small></div><button type="button" class="soft-btn" id="addCartItemBtn">+ Tambah Barang</button></div>
+      <div id="saleCartRows" class="sale-cart-rows"></div>
+    </div>
+    <label>Diskon Invoice<input name="discount" type="number" min="0" value="${existing?.discount??0}"></label>
+    <label>Metode Bayar${editing?`<input value="${escapeAttr(existing?.payment_method||'Lihat Riwayat Pembayaran')}" readonly><small class="micro">Metode awal; pembayaran berikutnya lewat Riwayat Pembayaran.</small>`:`<select name="payment_method" id="salePaymentMethod">${payMethods.map(v=>`<option ${v===(existing?.payment_method||'Cash')?'selected':''}>${v}</option>`).join('')}</select>`}</label>
+    <label>${editing?'Sudah Dibayar':'Pembayaran Awal'}<input ${editing?'':'name="paid_amount"'} id="salePaidAmount" type="number" min="0" value="${editing?Number(existing?.paid_amount||0):''}" placeholder="Tempo kosong = Rp0" ${editing?'readonly':''}><small class="micro">${editing?'Dihitung dari Riwayat Pembayaran.':'DP/pembayaran awal otomatis menjadi Pembayaran #1.'}</small></label>
     <label class="span-2">Catatan Transaksi<textarea name="notes" rows="2" placeholder="Opsional — tampil di dokumen cetak">${escapeHtml(existing?.notes||'')}</textarea></label>
-    <div class="span-2 payment-status-box"><div><span>Status Pembayaran</span><strong id="saleStatusText">—</strong><small>Status otomatis dari Total vs seluruh Riwayat Pembayaran.</small></div><button type="button" class="soft-btn" id="markPaidBtn">${editing?'Bayar Sisa / Tandai Lunas':'Tandai Lunas'}</button></div>
+    <div class="span-2 payment-status-box"><div><span>Status Pembayaran</span><strong id="saleStatusText">—</strong><small id="saleCartSummary">—</small></div><button type="button" class="soft-btn" id="markPaidBtn">${editing?'Bayar Sisa / Tandai Lunas':'Tandai Lunas'}</button></div>
     <div class="span-2 form-note" id="salePreview"></div>
     <div class="span-2 modal-actions"><button type="button" class="ghost modal-close">Batal</button><button type="submit" class="primary">${editing?'Simpan Perubahan':'Simpan Penjualan'}</button></div>
   </form>`);
   const form=$('#saleForm');
+  const lockedByProduct=new Map(existingItems.map(x=>[x.product_id,x]));
+  const rowSnapshot=(line)=>{
+    const p=products.find(x=>x.id===line.product_id);
+    const locked=editing?lockedByProduct.get(line.product_id):null;
+    return {p,qty:Number(line.qty||0),price:Number(locked?.unit_price??p?.price??0),cost:Number(locked?.unit_cost??p?.cost??0)};
+  };
+  const syncCartFromDom=()=>{
+    const rows=[...document.querySelectorAll('.sale-cart-row')];
+    cart=rows.map((row,i)=>({product_id:row.querySelector('.cart-product').value,qty:Number(row.querySelector('.cart-qty').value||0),line_no:i+1}));
+  };
   const calc=()=>{
-    const p=products.find(x=>x.id===$('#saleProduct').value);
-    const q=Number(form.qty.value||0),disc=Number(form.discount.value||0);
-    const effectivePrice=editing&&p?.id===existing?.product_id?Number(existing.unit_price||p?.price||0):Number(p?.price||0);
-    const total=Math.max(q*effectivePrice-disc,0);
-    const paidInput=$('#salePaidAmount').value;
-    const method=editing?(existing?.payment_method||'Tempo'):$('#salePaymentMethod').value;
+    syncCartFromDom();
+    let subtotal=0,costTotal=0,totalQty=0;
+    for(const line of cart){const x=rowSnapshot(line);subtotal+=x.qty*x.price;costTotal+=x.qty*x.cost;totalQty+=x.qty;}
+    const disc=Math.max(Number(form.discount.value||0),0);const total=Math.max(subtotal-disc,0);
+    const paidInput=$('#salePaidAmount').value;const method=editing?(existing?.payment_method||'Tempo'):$('#salePaymentMethod').value;
     const effectivePaid=editing?Number(existing?.paid_amount||0):(paidInput===''?(method==='Tempo'?0:total):Math.min(Number(paidInput||0),total));
     const due=Math.max(total-effectivePaid,0);
-    $('#salePreview').innerHTML=`Harga ${rupiah(effectivePrice)} × ${q} − diskon ${rupiah(disc)} = <strong>${rupiah(total)}</strong> · Stok ${p?.category==='Jasa'?'Jasa':num(p?.stock)}`;
+    $('#salePreview').innerHTML=`Subtotal ${rupiah(subtotal)} − diskon ${rupiah(disc)} = <strong>${rupiah(total)}</strong>`;
+    $('#saleCartSummary').textContent=`${cart.length} jenis item · total qty ${num(totalQty)}`;
     $('#saleStatusText').textContent=due>0?`Belum Lunas · Sisa ${rupiah(due)}`:'Lunas';
     $('#saleStatusText').className=due>0?'status-warn':'status-good';
-    return {p,q,disc,total,effectivePaid};
+    document.querySelectorAll('.sale-cart-row').forEach((row,i)=>{const x=rowSnapshot(cart[i]);row.querySelector('.cart-price').textContent=rupiah(x.price);row.querySelector('.cart-stock').textContent=x.p?.category==='Jasa'?'Jasa':`Stok ${num(x.p?.stock||0)}`;row.querySelector('.cart-subtotal').textContent=rupiah(x.qty*x.price);});
+    return {subtotal,costTotal,totalQty,disc,total,effectivePaid};
   };
-  form.oninput=calc; form.onchange=calc;
-  $('#markPaidBtn').onclick=()=>{ const c=calc(); if(editing){ closeModal(); openPaymentModal(existing.id,null,true); } else { $('#salePaidAmount').value=c.total; calc(); } };
-  calc();
+  const renderCart=()=>{
+    $('#saleCartRows').innerHTML=cart.map((line,i)=>`<div class="sale-cart-row" data-index="${i}"><div class="cart-index">${i+1}</div><label>Produk<select class="cart-product">${products.map(p=>`<option value="${p.id}" ${p.id===line.product_id?'selected':''}>${escapeHtml(p.sku)} — ${escapeHtml(p.name)}</option>`).join('')}</select></label><label>Qty<input class="cart-qty" type="number" min="0.01" step="0.01" value="${Number(line.qty||1)}"></label><div class="cart-meta"><span class="cart-price">Rp0</span><small class="cart-stock">—</small></div><strong class="cart-subtotal">Rp0</strong><button type="button" class="cart-remove" title="Hapus item" ${cart.length===1?'disabled':''}>×</button></div>`).join('');
+    document.querySelectorAll('.sale-cart-row').forEach((row,i)=>{row.querySelector('.cart-product').onchange=calc;row.querySelector('.cart-qty').oninput=calc;row.querySelector('.cart-remove').onclick=()=>{if(cart.length<=1)return;syncCartFromDom();cart.splice(i,1);renderCart();};});
+    calc();
+  };
+  $('#addCartItemBtn').onclick=()=>{syncCartFromDom();const used=new Set(cart.map(x=>x.product_id));const next=products.find(p=>!used.has(p.id))||products[0];cart.push({product_id:next.id,qty:1,line_no:cart.length+1});renderCart();};
+  form.discount.oninput=calc; form.discount.onchange=calc; $('#salePaidAmount').oninput=calc; if(!editing)$('#salePaymentMethod').onchange=calc;
+  $('#markPaidBtn').onclick=()=>{const c=calc();if(editing){closeModal();openPaymentModal(existing.id,null,true)}else{$('#salePaidAmount').value=c.total;calc()}};
+  renderCart();
   form.onsubmit=async e=>{
-    e.preventDefault();
-    const f=new FormData(form); const p=products.find(x=>x.id===f.get('product_id'));
-    const qty=Number(f.get('qty')),discount=Number(f.get('discount')||0); const effectivePrice=editing&&p.id===existing.product_id?Number(existing.unit_price||p.price):Number(p.price); const effectiveCost=editing&&p.id===existing.product_id?Number(existing.unit_cost||p.cost):Number(p.cost); const total=Math.max(qty*effectivePrice-discount,0);
-    const rawPaid=editing?String(existing?.paid_amount||0):f.get('paid_amount'); const saleMethod=editing?(existing?.payment_method||'Tempo'):f.get('payment_method'); let paid=editing?Number(existing?.paid_amount||0):(rawPaid===''?(saleMethod==='Tempo'?0:total):Number(rawPaid||0));
-    if(editing&&paid>total){toast('Total transaksi baru lebih kecil dari pembayaran yang sudah tercatat. Edit/hapus Riwayat Pembayaran terlebih dahulu.');return;}
-    paid=Math.max(0,Math.min(paid,total));
-    let available=Number(p.stock||0);
-    if(editing&&existing.product_id===p.id){ const oldP=products.find(x=>x.id===existing.product_id); if(oldP?.category!=='Jasa') available+=Number(existing.qty||0); }
-    if(p.category!=='Jasa'&&!activeBusiness()?.allow_negative_stock&&qty>available){toast('Stok tidak cukup untuk perubahan ini');return;}
-    const sale={business_id:state.currentBusinessId,client_request_id:submissionRequestId,date:f.get('date'),invoice_no:editing?existing.invoice_no:null,delivery_no:editing?existing.delivery_no:null,customer:f.get('customer'),customer_phone:f.get('customer_phone'),customer_address:f.get('customer_address'),notes:f.get('notes'),product_id:p.id,product_name:p.name,qty,unit_price:effectivePrice,unit_cost:effectiveCost,discount,total,gross_profit:total-(qty*effectiveCost),payment_method:saleMethod,paid_amount:paid};
-    await withSubmitBusy(form,async()=>{try{if(editing) await updateSale(existing.id,sale); else await addSale(sale);closeModal();navigate('sales');toast(editing?'Penjualan diperbarui':'Penjualan tersimpan','success')}catch(err){toast(err.message,'error',4500);throw err}},editing?'Menyimpan...':'Membuat invoice...');
+    e.preventDefault();syncCartFromDom();const f=new FormData(form);
+    if(!cart.length){toast('Tambahkan minimal 1 barang');return;}
+    const ids=cart.map(x=>x.product_id);if(new Set(ids).size!==ids.length){toast('Produk yang sama cukup satu baris. Ubah Qty pada baris tersebut.','error');return;}
+    for(const line of cart){if(Number(line.qty)<=0){toast('Qty setiap barang harus lebih dari 0','error');return;}const p=products.find(x=>x.id===line.product_id);if(!p){toast('Produk tidak ditemukan','error');return;}let available=Number(p.stock||0);if(editing){const old=lockedByProduct.get(p.id);if(old&&p.category!=='Jasa')available+=Number(old.qty||0);}if(p.category!=='Jasa'&&!activeBusiness()?.allow_negative_stock&&Number(line.qty)>available){toast(`Stok ${p.name} tidak cukup. Tersedia ${num(available)}`,'error');return;}}
+    const calcData=calc();const rawPaid=editing?String(existing?.paid_amount||0):f.get('paid_amount');const saleMethod=editing?(existing?.payment_method||'Tempo'):f.get('payment_method');let paid=editing?Number(existing?.paid_amount||0):(rawPaid===''?(saleMethod==='Tempo'?0:calcData.total):Number(rawPaid||0));
+    if(editing&&paid>calcData.total){toast('Total transaksi baru lebih kecil dari pembayaran yang sudah tercatat. Edit/hapus Riwayat Pembayaran terlebih dahulu.');return;}paid=Math.max(0,Math.min(paid,calcData.total));
+    const lineItems=cart.map((line,i)=>{const x=rowSnapshot(line);return {business_id:state.currentBusinessId,sale_id:existing?.id||null,line_no:i+1,product_id:line.product_id,product_name:x.p?.name||'',unit:x.p?.unit||'pcs',qty:Number(line.qty),unit_price:x.price,unit_cost:x.cost,line_total:Number(line.qty)*x.price,line_gross_profit:Number(line.qty)*(x.price-x.cost)};});
+    const first=lineItems[0];const summary=lineItems.length===1?first.product_name:`${first.product_name} +${lineItems.length-1} item`;
+    const sale={business_id:state.currentBusinessId,client_request_id:submissionRequestId,date:f.get('date'),invoice_no:editing?existing.invoice_no:null,delivery_no:editing?existing.delivery_no:null,customer:f.get('customer'),customer_phone:f.get('customer_phone'),customer_address:f.get('customer_address'),notes:f.get('notes'),product_id:first.product_id,product_name:summary,qty:calcData.totalQty,unit_price:first.unit_price,unit_cost:first.unit_cost,discount:calcData.disc,total:calcData.total,gross_profit:calcData.total-calcData.costTotal,payment_method:saleMethod,paid_amount:paid,items:lineItems};
+    await withSubmitBusy(form,async()=>{try{if(editing)await updateSale(existing.id,sale);else await addSale(sale);closeModal();navigate('sales');toast(editing?'Penjualan diperbarui':'Penjualan tersimpan','success')}catch(err){toast(err.message,'error',4500);throw err}},editing?'Menyimpan...':'Membuat invoice...');
   };
 }
 
@@ -975,9 +1029,9 @@ function printSaleDocument(saleId,type,paymentId=null){
 function docSafe(v=''){return escapeHtml(v||'')}
 function docNumber(prefix,invoice){return `${prefix}-${String(invoice||'').replace(/^(INV[-/]?)/i,'')||String(Date.now()).slice(-6)}`}
 function buildSaleDocumentHtml(sale,type,payment=null){
-  const b=activeBusiness()||{}; const p=state.products.find(x=>x.id===sale.product_id)||{};
-  const qty=Number(sale.qty||0), price=Number(sale.unit_price||0), discount=Number(sale.discount||0), total=Number(sale.total||0), paid=Number(sale.paid_amount||0), due=Math.max(total-paid,0);
-  const subtotal=qty*price; const unit=p.unit||'pcs'; const city=b.city||''; const date=fmtDate(sale.date); const status=due>0?'BELUM LUNAS':'LUNAS'; const paymentRows=paymentsForSale(sale.id); const paymentMethods=[...new Set(paymentRows.map(x=>x.method).filter(Boolean))].join(', ')||sale.payment_method||'-';
+  const b=activeBusiness()||{}; const lines=itemsForSale(sale.id);
+  const discount=Number(sale.discount||0), total=Number(sale.total||0), paid=Number(sale.paid_amount||0), due=Math.max(total-paid,0);
+  const subtotal=lines.reduce((a,x)=>a+Number(x.line_total??(Number(x.qty||0)*Number(x.unit_price||0))),0); const city=b.city||''; const date=fmtDate(sale.date); const status=due>0?'BELUM LUNAS':'LUNAS'; const paymentRows=paymentsForSale(sale.id); const paymentMethods=[...new Set(paymentRows.map(x=>x.method).filter(Boolean))].join(', ')||sale.payment_method||'-';
   const businessHead=`<div class="brandline"><div class="brandbox">${docSafe((b.name||'B').slice(0,1).toUpperCase())}</div><div class="biz"><h1>${docSafe(b.name||'Nama Bisnis')}</h1><p>${docSafe(b.address||'Alamat usaha belum diatur')}</p><p>${[b.phone,b.email].filter(Boolean).map(docSafe).join(' · ')||'Kontak belum diatur'}</p></div></div>`;
   const commonCss=`<style>*{box-sizing:border-box}body{margin:0;color:#17212b;font-family:Arial,Helvetica,sans-serif;font-size:12px;background:#fff}.page{max-width:820px;margin:0 auto;padding:8mm 4mm}.brandline{display:flex;gap:12px;align-items:flex-start}.brandbox{width:46px;height:46px;border-radius:10px;background:#17324d;color:white;font-weight:800;font-size:24px;display:grid;place-items:center}.biz h1{font-size:19px;margin:0 0 4px}.biz p{margin:2px 0;color:#52606d;line-height:1.35}.doc-title{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid #17324d;padding-bottom:12px;margin-bottom:18px}.doc-title h2{margin:0;font-size:28px;letter-spacing:.06em;color:#17324d}.doc-title .no{text-align:right}.doc-title .no b{display:block;font-size:13px}.doc-title .no span{color:#667085}.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}.info-box{border:1px solid #dfe5ea;border-radius:10px;padding:12px}.info-box h3{margin:0 0 8px;font-size:10px;color:#667085;text-transform:uppercase;letter-spacing:.08em}.info-box p{margin:4px 0;line-height:1.45}.doc-table{width:100%;border-collapse:collapse;margin:14px 0}.doc-table th{background:#17324d;color:#fff;text-align:left;padding:9px;border:1px solid #17324d;font-size:10px}.doc-table td{padding:10px 9px;border:1px solid #dde3e8}.right{text-align:right}.summary{margin-left:auto;width:min(340px,100%)}.sumrow{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #e7eaee}.sumrow.total{font-size:14px;font-weight:800;border-top:2px solid #17324d;border-bottom:0;padding-top:10px}.status{display:inline-block;padding:5px 9px;border-radius:999px;font-size:10px;font-weight:800}.status.good{background:#ecfdf3;color:#027a48}.status.warn{background:#fff4e5;color:#b54708}.note{margin-top:20px;padding:11px 12px;background:#f7f9fa;border-radius:9px;color:#475467;line-height:1.5}.footer{margin-top:28px;padding-top:12px;border-top:1px solid #dfe5ea;color:#667085;font-size:10px;display:flex;justify-content:space-between;gap:20px}.sign-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:50px;margin-top:55px;text-align:center}.sign-space{height:55px}.sign-line{border-top:1px solid #7b8794;padding-top:5px}.amount-box{border:2px solid #17324d;border-radius:12px;padding:16px 18px;margin:18px 0;background:#f8fbfa}.amount-box span{font-size:10px;text-transform:uppercase;color:#667085;letter-spacing:.08em}.amount-box strong{display:block;font-size:25px;color:#17324d;margin-top:5px}.words{font-style:italic;line-height:1.55;background:#f5f7f9;padding:11px 13px;border-radius:8px}.receipt-body{font-size:13px;line-height:1.75}.receipt-body .line{display:grid;grid-template-columns:145px 12px 1fr;gap:5px;margin:5px 0}.delivery-head{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin:18px 0}.delivery-note{font-size:11px;color:#52606d;margin-top:8px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}.page{padding:0}.no-print{display:none}}@media(max-width:640px){.two-col,.delivery-head{grid-template-columns:1fr}.doc-title{align-items:flex-start;gap:15px}.doc-title h2{font-size:23px}.sign-grid{gap:20px}.receipt-body .line{grid-template-columns:110px 8px 1fr}} </style>`;
   const script=`<script>window.addEventListener('afterprint',()=>setTimeout(()=>window.close(),100));<\/script>`;
@@ -987,9 +1041,9 @@ function buildSaleDocumentHtml(sale,type,payment=null){
   }
   if(type==='delivery'){
     const sjNo=sale.delivery_no||docNumber('SJ',sale.invoice_no);
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Surat Jalan ${docSafe(sjNo)}</title>${commonCss}<style>@page{size:A4 portrait;margin:12mm}</style></head><body><main class="page">${businessHead}<div class="doc-title"><h2>SURAT JALAN</h2><div class="no"><span>No.</span><b>${docSafe(sjNo)}</b><span>${date}</span></div></div><div class="delivery-head"><div class="info-box"><h3>Tujuan / Penerima</h3><p><b>${docSafe(sale.customer||'Customer')}</b></p><p>${docSafe(sale.customer_address||'Alamat tujuan belum diisi')}</p><p>${docSafe(sale.customer_phone||'')}</p></div><div class="info-box"><h3>Referensi</h3><p>Invoice: <b>${docSafe(sale.invoice_no)}</b></p><p>Tanggal: ${date}</p><p>Pengirim: ${docSafe(b.name||'-')}</p></div></div><table class="doc-table"><thead><tr><th style="width:42px">No.</th><th>Nama Barang / Jasa</th><th style="width:95px">Qty</th><th style="width:95px">Satuan</th><th>Keterangan</th></tr></thead><tbody><tr><td>1</td><td><b>${docSafe(sale.product_name)}</b></td><td>${num(qty)}</td><td>${docSafe(unit)}</td><td>${docSafe(sale.notes||'-')}</td></tr></tbody></table><div class="delivery-note">Dokumen ini tidak menampilkan harga. Mohon periksa jumlah dan kondisi barang saat diterima.</div><div class="sign-grid"><div><div class="sign-space"></div><div class="sign-line">Pengirim<br><b>${docSafe(b.name||'')}</b></div></div><div><div class="sign-space"></div><div class="sign-line">Penerima<br><b>${docSafe(sale.customer||'')}</b></div></div></div><div class="footer"><span>${docSafe(b.document_footer||'Barang telah diserahkan sesuai daftar di atas.')}</span><span>BizControl Online</span></div></main>${script}</body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Surat Jalan ${docSafe(sjNo)}</title>${commonCss}<style>@page{size:A4 portrait;margin:12mm}</style></head><body><main class="page">${businessHead}<div class="doc-title"><h2>SURAT JALAN</h2><div class="no"><span>No.</span><b>${docSafe(sjNo)}</b><span>${date}</span></div></div><div class="delivery-head"><div class="info-box"><h3>Tujuan / Penerima</h3><p><b>${docSafe(sale.customer||'Customer')}</b></p><p>${docSafe(sale.customer_address||'Alamat tujuan belum diisi')}</p><p>${docSafe(sale.customer_phone||'')}</p></div><div class="info-box"><h3>Referensi</h3><p>Invoice: <b>${docSafe(sale.invoice_no)}</b></p><p>Tanggal: ${date}</p><p>Pengirim: ${docSafe(b.name||'-')}</p></div></div><table class="doc-table"><thead><tr><th style="width:42px">No.</th><th>Nama Barang / Jasa</th><th style="width:95px">Qty</th><th style="width:95px">Satuan</th><th>Keterangan</th></tr></thead><tbody>${lines.map((x,i)=>`<tr><td>${i+1}</td><td><b>${docSafe(x.product_name)}</b></td><td>${num(x.qty)}</td><td>${docSafe(x.unit||'pcs')}</td><td>${docSafe(sale.notes||'-')}</td></tr>`).join('')}</tbody></table><div class="delivery-note">Dokumen ini tidak menampilkan harga. Mohon periksa jumlah dan kondisi barang saat diterima.</div><div class="sign-grid"><div><div class="sign-space"></div><div class="sign-line">Pengirim<br><b>${docSafe(b.name||'')}</b></div></div><div><div class="sign-space"></div><div class="sign-line">Penerima<br><b>${docSafe(sale.customer||'')}</b></div></div></div><div class="footer"><span>${docSafe(b.document_footer||'Barang telah diserahkan sesuai daftar di atas.')}</span><span>BizControl Online</span></div></main>${script}</body></html>`;
   }
-  return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${docSafe(sale.invoice_no)}</title>${commonCss}<style>@page{size:A4 portrait;margin:12mm}</style></head><body><main class="page">${businessHead}<div class="doc-title"><h2>INVOICE</h2><div class="no"><span>No. Invoice</span><b>${docSafe(sale.invoice_no)}</b><span>${date}</span></div></div><div class="two-col"><div class="info-box"><h3>Tagihan Kepada</h3><p><b>${docSafe(sale.customer||'Customer')}</b></p><p>${docSafe(sale.customer_address||'Alamat customer belum diisi')}</p><p>${docSafe(sale.customer_phone||'')}</p></div><div class="info-box"><h3>Informasi Pembayaran</h3><p>Metode: <b>${docSafe(paymentMethods)}</b></p><p>Pembayaran: <b>${paymentRows.length||0} kali</b></p><p>Status: <span class="status ${due?'warn':'good'}">${status}</span></p><p>Dibayar: <b>${rupiah(paid)}</b></p></div></div><table class="doc-table"><thead><tr><th>No.</th><th>Produk / Jasa</th><th>Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody><tr><td>1</td><td><b>${docSafe(sale.product_name)}</b><br><small>${docSafe(p.sku||'')}</small></td><td>${num(qty)}</td><td>${docSafe(unit)}</td><td class="right">${rupiah(price)}</td><td class="right">${rupiah(subtotal)}</td></tr></tbody></table><div class="summary"><div class="sumrow"><span>Subtotal</span><b>${rupiah(subtotal)}</b></div><div class="sumrow"><span>Diskon</span><b>− ${rupiah(discount)}</b></div><div class="sumrow total"><span>Total</span><b>${rupiah(total)}</b></div><div class="sumrow"><span>Sudah Dibayar</span><b>${rupiah(paid)}</b></div><div class="sumrow"><span>Sisa Tagihan</span><b>${rupiah(due)}</b></div></div>${sale.notes?`<div class="note"><b>Catatan:</b> ${docSafe(sale.notes)}</div>`:''}<div class="sign-grid"><div><div class="sign-space"></div><div class="sign-line">Customer<br><b>${docSafe(sale.customer||'')}</b></div></div><div><div>${docSafe(city)}${city?', ':''}${date}</div><div class="sign-space"></div><div class="sign-line">Hormat Kami<br><b>${docSafe(b.name||'')}</b></div></div></div><div class="footer"><span>${docSafe(b.document_footer||'Terima kasih atas kepercayaan Anda.')}</span><span>Dokumen dibuat melalui BizControl Online</span></div></main>${script}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>Invoice ${docSafe(sale.invoice_no)}</title>${commonCss}<style>@page{size:A4 portrait;margin:12mm}</style></head><body><main class="page">${businessHead}<div class="doc-title"><h2>INVOICE</h2><div class="no"><span>No. Invoice</span><b>${docSafe(sale.invoice_no)}</b><span>${date}</span></div></div><div class="two-col"><div class="info-box"><h3>Tagihan Kepada</h3><p><b>${docSafe(sale.customer||'Customer')}</b></p><p>${docSafe(sale.customer_address||'Alamat customer belum diisi')}</p><p>${docSafe(sale.customer_phone||'')}</p></div><div class="info-box"><h3>Informasi Pembayaran</h3><p>Metode: <b>${docSafe(paymentMethods)}</b></p><p>Pembayaran: <b>${paymentRows.length||0} kali</b></p><p>Status: <span class="status ${due?'warn':'good'}">${status}</span></p><p>Dibayar: <b>${rupiah(paid)}</b></p></div></div><table class="doc-table"><thead><tr><th>No.</th><th>Produk / Jasa</th><th>Qty</th><th>Satuan</th><th class="right">Harga</th><th class="right">Jumlah</th></tr></thead><tbody>${lines.map((x,i)=>{const p=state.products.find(p=>p.id===x.product_id)||{};return `<tr><td>${i+1}</td><td><b>${docSafe(x.product_name)}</b><br><small>${docSafe(p.sku||'')}</small></td><td>${num(x.qty)}</td><td>${docSafe(x.unit||p.unit||'pcs')}</td><td class="right">${rupiah(x.unit_price)}</td><td class="right">${rupiah(Number(x.line_total??(Number(x.qty||0)*Number(x.unit_price||0))))}</td></tr>`}).join('')}</tbody></table><div class="summary"><div class="sumrow"><span>Subtotal</span><b>${rupiah(subtotal)}</b></div><div class="sumrow"><span>Diskon</span><b>− ${rupiah(discount)}</b></div><div class="sumrow total"><span>Total</span><b>${rupiah(total)}</b></div><div class="sumrow"><span>Sudah Dibayar</span><b>${rupiah(paid)}</b></div><div class="sumrow"><span>Sisa Tagihan</span><b>${rupiah(due)}</b></div></div>${sale.notes?`<div class="note"><b>Catatan:</b> ${docSafe(sale.notes)}</div>`:''}<div class="sign-grid"><div><div class="sign-space"></div><div class="sign-line">Customer<br><b>${docSafe(sale.customer||'')}</b></div></div><div><div>${docSafe(city)}${city?', ':''}${date}</div><div class="sign-space"></div><div class="sign-line">Hormat Kami<br><b>${docSafe(b.name||'')}</b></div></div></div><div class="footer"><span>${docSafe(b.document_footer||'Terima kasih atas kepercayaan Anda.')}</span><span>Dokumen dibuat melalui BizControl Online</span></div></main>${script}</body></html>`;
 }
 
 
@@ -1076,16 +1130,18 @@ async function addProduct(product){
   else{const row={...product,id:uid(),client_request_id:requestId};state.products.push(row);localAudit('CREATE','products',row.id,`${row.sku} · ${row.name}`,null,row);persist();} toast('Produk tersimpan','success');
 }
 async function addSale(sale){
-  if(!requirePermission('sales_create'))throw new Error('Tidak diizinkan');const requestId=sale.client_request_id||newClientRequestId();
+  if(!requirePermission('sales_create'))throw new Error('Tidak diizinkan');const requestId=sale.client_request_id||newClientRequestId();const items=sale.items||[];
+  if(!items.length)throw new Error('Minimal satu item diperlukan');
   if(state.mode==='cloud'){
-    const result=await cloudRequest('/rest/v1/rpc/create_sale_with_payment',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_product_id:sale.product_id,p_qty:Number(sale.qty||0),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Cash',p_initial_paid:Number(sale.paid_amount||0),p_request_id:requestId}});
-    if(result?.ok===false)throw new Error(result.error||'Gagal membuat transaksi');
-    await cloudLoadBusinessData();
+    const result=await cloudRequest('/rest/v1/rpc/create_sale_with_items',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_items:items.map(x=>({product_id:x.product_id,qty:Number(x.qty||0)})),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Cash',p_initial_paid:Number(sale.paid_amount||0),p_request_id:requestId}});
+    if(result?.ok===false)throw new Error(result.error||'Gagal membuat transaksi');await cloudLoadBusinessData();
   } else {
-    sale.invoice_no=sale.invoice_no||await nextDocumentNumber('INV',sale.date);sale.delivery_no=sale.delivery_no||await nextDocumentNumber('SJ',sale.date);
-    const p=state.products.find(x=>x.id===sale.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock)-Number(sale.qty);const initialPaid=Number(sale.paid_amount||0);const row={...sale,id:uid(),client_request_id:requestId,paid_amount:0,created_at:new Date().toISOString()};state.sales.push(row);localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,row);if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();
+    sale.invoice_no=sale.invoice_no||await nextDocumentNumber('INV',sale.date);sale.delivery_no=sale.delivery_no||await nextDocumentNumber('SJ',sale.date);const initialPaid=Number(sale.paid_amount||0);const rowId=uid();const clean={...sale};delete clean.items;const row={...clean,id:rowId,client_request_id:requestId,paid_amount:0,created_at:new Date().toISOString()};state.sales.push(row);
+    items.forEach((it,i)=>{const p=state.products.find(x=>x.id===it.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock||0)-Number(it.qty||0);state.saleItems.push({...it,id:uid(),business_id:state.currentBusinessId,sale_id:rowId,line_no:i+1,created_at:new Date().toISOString()});});
+    localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,{...row,items:items.map(x=>({product_id:x.product_id,product_name:x.product_name,qty:x.qty,unit_price:x.unit_price,line_total:x.line_total}))});if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();
   }
 }
+
 async function addExpense(exp){
   if(!requirePermission('expenses_edit'))throw new Error('Tidak diizinkan');const requestId=exp.client_request_id||newClientRequestId();
   if(state.mode==='cloud'){await createCloudRow('expenses',exp,requestId);await cloudLoadBusinessData();}else{const row={...exp,id:uid(),client_request_id:requestId};state.expenses.push(row);localAudit('CREATE','expenses',row.id,row.description,null,row);persist();} toast('Biaya tersimpan','success');
@@ -1101,19 +1157,20 @@ async function updateProductStock(id,patch){if(!requirePermission('products_stoc
   if(state.mode==='cloud'){const b=encodeURIComponent(state.currentBusinessId);await cloudRequest(`/rest/v1/products?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:clean});await cloudLoadBusinessData();}
   else {const row=state.products.find(x=>x.id===id&&x.business_id===state.currentBusinessId);if(!row)throw new Error('Produk tidak ditemukan');const before=cloneAuditData(row);Object.assign(row,clean);localAudit('UPDATE','stock',row.id,`${row.sku} · ${row.name}`,before,row);persist();}
 }
-async function updateSale(id,sale){if(!requirePermission('sales_edit'))throw new Error('Tidak diizinkan');
+async function updateSale(id,sale){if(!requirePermission('sales_edit'))throw new Error('Tidak diizinkan');const items=sale.items||[];if(!items.length)throw new Error('Minimal satu item diperlukan');
   if(state.mode==='cloud'){
-    const result=await cloudRequest('/rest/v1/rpc/update_sale_secure',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_id:id,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_product_id:sale.product_id,p_qty:Number(sale.qty||0),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Tempo'}});
-    if(result?.ok===false)throw new Error(result.error||'Gagal mengubah transaksi'); await cloudLoadBusinessData();
+    const result=await cloudRequest('/rest/v1/rpc/update_sale_with_items',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_id:id,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_items:items.map(x=>({product_id:x.product_id,qty:Number(x.qty||0)})),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Tempo'}});
+    if(result?.ok===false)throw new Error(result.error||'Gagal mengubah transaksi');await cloudLoadBusinessData();
   } else {
-    const old=state.sales.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!old) throw new Error('Transaksi tidak ditemukan');
-    const before=cloneAuditData(old); const oldP=state.products.find(x=>x.id===old.product_id), newP=state.products.find(x=>x.id===sale.product_id);
-    if(oldP&&oldP.category!=='Jasa') oldP.stock=Number(oldP.stock||0)+Number(old.qty||0);
-    if(newP&&newP.category!=='Jasa') newP.stock=Number(newP.stock||0)-Number(sale.qty||0);
-    Object.assign(old,sale); localAudit('UPDATE','sales',old.id,`${old.invoice_no} · ${old.customer||old.product_name}`,before,old); persist();
+    const old=state.sales.find(x=>x.id===id&&x.business_id===state.currentBusinessId);if(!old)throw new Error('Transaksi tidak ditemukan');const before=cloneAuditData(old);const oldItems=itemsForSale(id);
+    oldItems.forEach(it=>{const p=state.products.find(x=>x.id===it.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock||0)+Number(it.qty||0);});
+    items.forEach(it=>{const p=state.products.find(x=>x.id===it.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock||0)-Number(it.qty||0);});
+    state.saleItems=(state.saleItems||[]).filter(x=>x.sale_id!==id);items.forEach((it,i)=>state.saleItems.push({...it,id:uid(),business_id:state.currentBusinessId,sale_id:id,line_no:i+1,created_at:new Date().toISOString()}));
+    const clean={...sale};delete clean.items;Object.assign(old,clean);localAudit('UPDATE','sales',old.id,`${old.invoice_no} · ${old.customer||old.product_name}`,before,{...cloneAuditData(old),items:items.map(x=>({product_id:x.product_id,product_name:x.product_name,qty:x.qty,unit_price:x.unit_price,line_total:x.line_total}))});persist();
   }
   toast('Penjualan diperbarui');
 }
+
 async function updateExpense(id,expense){if(!requirePermission('expenses_edit'))throw new Error('Tidak diizinkan');
   if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); const clean={date:expense.date,category:expense.category,description:expense.description,amount:Number(expense.amount||0),payment_method:expense.payment_method}; await cloudRequest(`/rest/v1/expenses?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:clean,prefer:true}); await cloudLoadBusinessData(); }
   else { const row=state.expenses.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row) throw new Error('Biaya tidak ditemukan'); const before=cloneAuditData(row); Object.assign(row,expense); localAudit('UPDATE','expenses',row.id,row.description,before,row); persist(); }
@@ -1168,10 +1225,10 @@ async function secureDeleteRecord(entity,id,pin){
   const expected=loadDeleteKeys()[state.currentBusinessId]; if(!expected) throw new Error('Security Key belum diatur'); if(await hashPin(pin)!==expected) throw new Error('Security Key salah');
   if(entity==='sale'){
     const row=state.sales.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row) throw new Error('Transaksi tidak ditemukan');
-    const p=state.products.find(x=>x.id===row.product_id); if(p&&p.category!=='Jasa') p.stock=Number(p.stock||0)+Number(row.qty||0);
-    (state.payments||[]).filter(x=>x.sale_id===row.id&&x.business_id===state.currentBusinessId).forEach(pay=>localAudit('DELETE','payments',pay.id,`${row.invoice_no} · Pembayaran #${pay.payment_no}`,pay,null)); state.payments=(state.payments||[]).filter(x=>x.sale_id!==row.id); localAudit('DELETE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,row,null); state.sales=state.sales.filter(x=>x.id!==id);
+    const oldItems=itemsForSale(row.id);oldItems.forEach(it=>{const p=state.products.find(x=>x.id===it.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock||0)+Number(it.qty||0);});state.saleItems=(state.saleItems||[]).filter(x=>x.sale_id!==row.id);
+    (state.payments||[]).filter(x=>x.sale_id===row.id&&x.business_id===state.currentBusinessId).forEach(pay=>localAudit('DELETE','payments',pay.id,`${row.invoice_no} · Pembayaran #${pay.payment_no}`,pay,null)); state.payments=(state.payments||[]).filter(x=>x.sale_id!==row.id); localAudit('DELETE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,{...row,items:oldItems},null); state.sales=state.sales.filter(x=>x.id!==id);
   }else if(entity==='product'){
-    if(state.sales.some(x=>x.product_id===id&&x.business_id===state.currentBusinessId)) throw new Error('Produk sudah punya riwayat penjualan. Demi histori laporan, produk ini tidak bisa dihapus. Edit datanya saja.');
+    if((state.saleItems||[]).some(x=>x.product_id===id&&x.business_id===state.currentBusinessId)||state.sales.some(x=>x.product_id===id&&x.business_id===state.currentBusinessId)) throw new Error('Produk sudah punya riwayat penjualan. Demi histori laporan, produk ini tidak bisa dihapus. Edit datanya saja.');
     const row=state.products.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(row) localAudit('DELETE','products',row.id,`${row.sku} · ${row.name}`,row,null); state.products=state.products.filter(x=>x.id!==id);
   }else if(entity==='expense'){ const row=state.expenses.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(row) localAudit('DELETE','expenses',row.id,row.description,row,null); state.expenses=state.expenses.filter(x=>x.id!==id); }
   else if(entity==='payment'){ const row=(state.payments||[]).find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row)throw new Error('Pembayaran tidak ditemukan'); const sale=state.sales.find(s=>s.id===row.sale_id); localAudit('DELETE','payments',row.id,`${sale?.invoice_no||'Invoice'} · Pembayaran #${row.payment_no}`,row,null); state.payments=state.payments.filter(x=>x.id!==id); recalcLocalSalePaid(row.sale_id); }
@@ -1359,7 +1416,7 @@ async function cloudBootstrap(){
         await addBusiness('Bisnis Saya');
         await cloudLoadBusinesses();
       }else{
-        stopPolling();state.currentBusinessId=null;state.currentRole='staff';state.products=[];state.sales=[];state.payments=[];state.expenses=[];state.auditLogs=[];state.teamMembers=[];
+        stopPolling();state.currentBusinessId=null;state.currentRole='staff';state.products=[];state.sales=[];state.saleItems=[];state.payments=[];state.expenses=[];state.auditLogs=[];state.teamMembers=[];
         clearSession();setAuthMode('login');showAuth();toast('Akun ini tidak memiliki akses bisnis aktif. Hubungi Owner jika akses Anda dicabut atau undangan belum aktif.','error',8000);return;
       }
     }
@@ -1381,10 +1438,11 @@ async function cloudLoadBusinessData(){
   const queries=[];
   queries.push(cloudRequest('/rest/v1/rpc/list_products_for_business',{method:'POST',body:{p_bid:state.currentBusinessId}}));
   queries.push(can('sales_view')?cloudRequest('/rest/v1/rpc/list_sales_for_business',{method:'POST',body:{bid:state.currentBusinessId}}):Promise.resolve([]));
+  queries.push(can('sales_view')?cloudRequest('/rest/v1/rpc/list_sale_items_for_business',{method:'POST',body:{p_bid:state.currentBusinessId}}):Promise.resolve([]));
   queries.push(can('payments_manage')?cloudRequest(`/rest/v1/payments?select=*&business_id=eq.${b}&order=payment_date.asc,payment_no.asc`).catch(()=>[]):Promise.resolve([]));
   queries.push(can('expenses_view')?cloudRequest(`/rest/v1/expenses?select=*&business_id=eq.${b}&order=date.desc,created_at.desc`):Promise.resolve([]));
   queries.push(can('audit')?cloudRequest(`/rest/v1/audit_logs?select=*&business_id=eq.${b}&order=created_at.desc&limit=250`).catch(()=>[]):Promise.resolve([]));
-  const [products,sales,payments,expenses,auditLogs]=await Promise.all(queries);state.products=products||[];state.sales=sales||[];state.payments=payments||[];state.expenses=expenses||[];state.auditLogs=auditLogs||[];await cloudLoadTeam();state.lastSync=new Date().toISOString();setSyncState('idle');
+  const [products,sales,saleItems,payments,expenses,auditLogs]=await Promise.all(queries);state.products=products||[];state.sales=sales||[];state.saleItems=saleItems||[];state.payments=payments||[];state.expenses=expenses||[];state.auditLogs=auditLogs||[];await cloudLoadTeam();state.lastSync=new Date().toISOString();setSyncState('idle');
 }
 async function refreshAuditLog(){
   if(state.mode==='cloud'){ try{await cloudLoadBusinessData();navigate('audit');toast('Audit Log diperbarui');}catch(err){toast(err.message);} }
@@ -1406,11 +1464,11 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.5',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.6',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
-function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),500);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),750)}
-function importJson(){const i=document.createElement('input');i.type='file';i.accept='application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);state={...defaultState(),...data,mode:'local',session:null};persist();render();toast('Backup diimport','success')}catch{toast('File backup tidak valid','error')}};r.readAsText(f)};i.click()}
+function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('item-penjualan',businessData(state.saleItems||[])),500);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),750);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),1000)}
+function importJson(){const i=document.createElement('input');i.type='file';i.accept='application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);state={...defaultState(),...data,mode:'local',session:null,saleItems:Array.isArray(data.saleItems)?data.saleItems:[]};(state.sales||[]).forEach(sale=>{if(state.saleItems.some(x=>x.sale_id===sale.id&&x.business_id===sale.business_id))return;const p=(state.products||[]).find(x=>x.id===sale.product_id)||{};state.saleItems.push({id:uid(),business_id:sale.business_id,sale_id:sale.id,line_no:1,product_id:sale.product_id,product_name:sale.product_name||p.name||'Produk',unit:p.unit||'pcs',qty:Number(sale.qty||0),unit_price:Number(sale.unit_price||0),unit_cost:Number(sale.unit_cost||0),line_total:Number(sale.qty||0)*Number(sale.unit_price||0),line_gross_profit:Number(sale.qty||0)*(Number(sale.unit_price||0)-Number(sale.unit_cost||0))})});persist();render();toast('Backup diimport','success')}catch{toast('File backup tidak valid','error')}};r.readAsText(f)};i.click()}
 function slug(s=''){return String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'bisnis'}
 function escapeHtml(s=''){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
 function escapeAttr(s=''){return escapeHtml(s)}
@@ -1436,6 +1494,7 @@ function enterDemoSandbox(){
 // -------- Global bindings --------
 $('#quickSaleBtn').onclick=()=>requirePermission('sales_create')&&openSaleModal();
 $('#openSettingsBtn').onclick=()=>navigate('settings');
+$('#logoutBtn').onclick=()=>logoutCloud();
 $('#openAuthBtn').onclick=()=>openCloudAuth();
 $('#newBusinessBtn').onclick=openBusinessModal;
 $('#syncNowBtn').onclick=async()=>{if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();render();toast('Data tersinkron','success')}catch(e){toast(e.message,'error')}}else toast('Mode demo tersimpan di perangkat ini')};

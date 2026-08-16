@@ -1,0 +1,39 @@
+BizControl Online V1.8.6 — QA Report
+
+Result: 35/35 PASS
+
+PASS — Landing auth tampil
+PASS — Demo one-click masuk
+PASS — Logout tersembunyi di demo
+PASS — Kasir modal tampil
+PASS — Cart awal 1 baris
+PASS — Tambah barang menjadi 2 baris
+PASS — Preview total multi-item benar
+PASS — Satu invoice tercipta
+PASS — Invoice punya 2 item
+PASS — Total invoice Rp295.000
+PASS — Stok dua produk berkurang
+PASS — Ringkasan tabel multi-item
+PASS — Edit memuat 2 item
+PASS — Edit total menjadi Rp370.000
+PASS — Edit stok konsisten
+PASS — Invoice cetak memuat semua barang
+PASS — Surat jalan memuat semua barang
+PASS — Surat jalan tanpa harga
+PASS — Produk duplikat ditolak
+PASS — Stok tidak cukup ditolak
+PASS — Cart mobile tidak overflow horizontal
+PASS — Logout tidak ada di Pengaturan
+PASS — Logout tampil di topbar saat cloud
+PASS — Tidak ada page error
+PASS — SQL membuat sale_items
+PASS — SQL backfill transaksi lama
+PASS — Legacy stock trigger dimatikan
+PASS — Stock pindah ke sale_items
+PASS — Create RPC multi-item
+PASS — Update RPC multi-item
+PASS — RPC list item role-filtered
+PASS — Harga HPP item dimask untuk role
+PASS — Produk historis dilindungi sale_items
+PASS — Audit item aktif
+PASS — Transaction migration punya begin/commit
