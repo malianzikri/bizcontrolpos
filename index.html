@@ -4,9 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#143c35" />
-  <meta name="description" content="BizControl Online V1.7.1 - fondasi production: role user, cloud sync, backup/export, nomor dokumen aman, error handling, dan beta testing." />
-  
-  
+  <meta name="description" content="BizControl Online - business control UMKM dengan role, audit, dokumen, dan cloud sync." />
   <style>
 :root{
   --navy:#17324d;--navy2:#0f263a;--green:#1f7a5a;--green2:#143c35;--mint:#eaf3f0;
@@ -204,10 +202,15 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
   table.responsive-table tbody td[data-label="Aksi"] .row-actions{grid-template-columns:1fr}
 }
 
+/* V1.8 security/production UX */
+.demo-security-warning{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;padding:12px 14px;border:1px solid #f2c94c;background:#fff8df;border-radius:12px;color:#7a5a00}.demo-security-warning b{white-space:nowrap}.demo-security-warning span{line-height:1.45}.checkbox-setting{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:12px;border:1px solid #dfe6e3;border-radius:12px;background:#f8faf9}.checkbox-setting input{width:18px!important;height:18px!important;margin-top:2px}.checkbox-setting span{display:flex;flex-direction:column;gap:3px}.checkbox-setting small{color:#667085;font-weight:400;line-height:1.35}.turnstile-box{min-height:66px;display:flex;justify-content:center;align-items:center}.turnstile-box.hidden{display:none}
+@media(max-width:760px){.demo-security-warning{flex-direction:column;gap:4px}.demo-security-warning b{white-space:normal}}
+
 </style>
-  <title>BizControl Online</title>
+  <title>BizControl Online V1.8 Security Hardened — Demo</title>
 </head>
 <body>
+  <!-- DEMO ONLY: single-file build; do not use local mode for sensitive production data. -->
   <div id="toast" class="toast"></div>
 
   <section id="authView" class="auth-shell hidden">
@@ -221,7 +224,8 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
       </div>
       <form id="authForm" class="form-grid single">
         <label>Email<input id="authEmail" type="email" required placeholder="nama@email.com" /></label>
-        <label>Password<input id="authPassword" type="password" required minlength="6" placeholder="Minimal 6 karakter" /></label>
+        <label>Password<input id="authPassword" type="password" required minlength="8" placeholder="Minimal 8 karakter" /></label>
+        <div id="turnstileBox" class="turnstile-box hidden"></div>
         <button class="primary full" type="submit" id="authSubmit">Masuk</button>
       </form>
       <button id="backToDemo" class="ghost full">Kembali ke Mode Demo</button>
@@ -233,7 +237,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">B</div>
-        <div><strong>BizControl</strong><span>ONLINE V1.7.1</span></div>
+        <div><strong>BizControl</strong><span>ONLINE V1.8</span></div>
       </div>
       <div class="business-box">
         <span>Bisnis aktif</span>
@@ -269,7 +273,6 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <div id="modalCard" class="modal-card"></div>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -309,7 +312,7 @@ function canSeeFinancial(){return can('dashboard_financial')||can('reports')}
 function canSeeCost(){return currentRole()==='owner'||currentRole()==='admin'||currentRole()==='finance'||can('view_cost')}
 
 const defaultState = () => ({
-  page:'dashboard', mode:'local', businesses:[{id:'demo-business',name:'Toko Demo BizControl',owner_id:'local',address:'Jl. Contoh Usaha No. 10, Palembang',phone:'0812-3456-7890',email:'halo@tokodemo.id',city:'Palembang',document_footer:'Terima kasih sudah berbelanja dan mempercayai usaha kami.'}], currentBusinessId:'demo-business',
+  page:'dashboard', mode:'local', businesses:[{id:'demo-business',name:'Toko Demo BizControl',owner_id:'local',address:'Jl. Contoh Usaha No. 10, Palembang',phone:'0812-3456-7890',email:'halo@tokodemo.id',city:'Palembang',document_footer:'Terima kasih sudah berbelanja dan mempercayai usaha kami.',allow_negative_stock:false}], currentBusinessId:'demo-business',
   products:[
     {id:'p1',business_id:'demo-business',sku:'PRD-001',name:'Produk A',category:'Produk',unit:'pcs',cost:45000,price:75000,stock:28,min_stock:10},
     {id:'p2',business_id:'demo-business',sku:'PRD-002',name:'Produk B',category:'Produk',unit:'pcs',cost:70000,price:110000,stock:14,min_stock:8},
@@ -455,20 +458,29 @@ function metrics(){
 function renderDashboard(){
   const m=metrics(); const role=currentRole();
   const days=[...Array(7)].map((_,i)=>{const d=new Date(Date.now()-(6-i)*86400000);return d.toISOString().slice(0,10)});
-  const vals=days.map(d=>m.sales.filter(s=>s.date===d).reduce((a,s)=>a+Number(s.total),0)); const max=Math.max(...vals,1);
-  const financial=canSeeFinancial(); const stockRole=role==='warehouse';
+  const stockRole=role==='warehouse';
+  const vals=days.map(d=>stockRole?m.sales.filter(s=>s.date===d).length:m.sales.filter(s=>s.date===d).reduce((a,s)=>a+Number(s.total||0),0));
+  const max=Math.max(...vals,1);
+  const financial=canSeeFinancial();
   const kpis=stockRole
-    ? `${kpiCard('Produk Aktif',num(m.products.length),'Master produk','open-low-stock')}${kpiCard('Produk Menipis',num(m.lowStock),'Perlu restock','open-low-stock')}${kpiCard('Nilai Stok',canSeeCost()?rupiah(m.stockValue):'Tersembunyi','Sesuai role','open-low-stock')}${kpiCard('Transaksi Hari Ini',num(m.sales.filter(s=>s.date===today()).length),'Referensi pengiriman','open-day-sales')}`
+    ? `${kpiCard('Produk Aktif',num(m.products.length),'Master produk','open-low-stock')}${kpiCard('Produk Menipis',num(m.lowStock),'Perlu restock','open-low-stock')}${kpiCard('Transaksi Hari Ini',num(m.sales.filter(s=>s.date===today()).length),'Referensi pengiriman','open-day-sales')}${kpiCard('Surat Jalan Hari Ini',num(m.sales.filter(s=>s.date===today()&&s.delivery_no).length),'Dokumen fulfilment','open-day-sales')}`
     : financial
       ? `${kpiCard('Omzet Bulan Ini',rupiah(m.revenue),'Hari ini '+rupiah(m.todayRevenue),'open-revenue-summary')}${kpiCard('Laba Bersih',rupiah(m.net),'Margin '+(m.margin*100).toFixed(1)+'%','open-profit-summary')}${kpiCard('Piutang',rupiah(m.receivable),m.receivable?'Perlu follow-up':'Tidak ada tagihan','open-receivable-summary')}${kpiCard('Nilai Stok',rupiah(m.stockValue),m.lowStock+' produk menipis','open-low-stock')}`
       : `${kpiCard('Omzet Hari Ini',rupiah(m.todayRevenue),'Akses operasional','open-day-sales')}${kpiCard('Transaksi Hari Ini',num(m.sales.filter(s=>s.date===today()).length),'Penjualan tercatat','open-day-sales')}${kpiCard('Piutang',rupiah(m.receivable),'Tagihan customer','open-receivable-summary')}${kpiCard('Stok Menipis',num(m.lowStock),'Perlu perhatian','open-low-stock')}`;
   const healthLabel=m.score>=80?'Kondisi cukup sehat':m.score>=60?'Perlu beberapa perhatian':'Perlu tindakan prioritas';
   const quick=[can('sales_create')?`<button class="quick-card" type="button" data-action="add-sale"><strong>+ Penjualan</strong><span>Catat transaksi baru</span></button>`:'',can('products_edit')?`<button class="quick-card" type="button" data-action="add-product"><strong>+ Produk</strong><span>Tambah produk / jasa</span></button>`:'',can('expenses_edit')?`<button class="quick-card" type="button" data-action="add-expense"><strong>+ Biaya</strong><span>Catat pengeluaran</span></button>`:'',can('reports')?`<button class="quick-card" type="button" data-nav="reports"><strong>Lihat Laporan</strong><span>Laba rugi & ringkasan</span></button>`:''].filter(Boolean).join('');
+  const chartTitle=stockRole?'Aktivitas Pengiriman 7 Hari':'Omzet 7 Hari Terakhir';
+  const chartHint=stockRole?'Klik batang untuk daftar transaksi/pengiriman pada hari tersebut.':'Klik batang untuk detail transaksi hari itu.';
+  const chartBars=days.map((d,i)=>`<button type="button" class="bar-wrap bar-btn" data-action="open-day-sales" data-date="${d}"><div class="bar-value">${stockRole?num(vals[i]):(vals[i]?rupiah(vals[i]).replace(/,00$/,''):'Rp0')}</div><div class="bar" style="height:${Math.max(4,(vals[i]/max)*150)}px"></div><div class="bar-label">${new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'})}</div></button>`).join('');
+  const alerts=stockRole
+    ? `<div class="alert-list"><button type="button" class="alert-item alert-btn" data-action="open-low-stock"><span><b>Stok menipis</b><small>Produk perlu restock</small></span><strong>${m.lowStock} ›</strong></button><button type="button" class="alert-item alert-btn" data-action="open-day-sales" data-date="${today()}"><span><b>Pengiriman hari ini</b><small>Invoice / surat jalan hari ini</small></span><strong>${num(m.sales.filter(s=>s.date===today()).length)} ›</strong></button></div>`
+    : `<div class="alert-list"><button type="button" class="alert-item alert-btn" data-action="open-low-stock"><span><b>Stok menipis</b><small>Produk perlu restock</small></span><strong>${m.lowStock} ›</strong></button><button type="button" class="alert-item alert-btn" data-action="open-receivable-summary"><span><b>Piutang</b><small>Transaksi belum lunas</small></span><strong>${rupiah(m.receivable)} ›</strong></button>${can('expenses_view')?`<button type="button" class="alert-item alert-btn" data-action="open-expense-summary"><span><b>Biaya bulan ini</b><small>Rincian pengeluaran</small></span><strong>${rupiah(m.exp)} ›</strong></button>`:''}</div>`;
   return `<div class="role-banner"><div><span>Anda masuk sebagai</span>${roleBadge()}</div><small>Menu dan aksi otomatis menyesuaikan hak akses.</small></div>
+    ${state.mode==='local'?`<div class="demo-security-warning"><b>MODE DEMO</b><span>Data tersimpan di browser perangkat ini. Jangan gunakan data bisnis sensitif atau data production.</span></div>`:''}
     <div class="kpi-grid">${kpis}</div>${quick?`<div class="quick-grid quick-grid-dynamic">${quick}</div>`:''}
     <div class="section-grid">
-      <section class="panel dashboard-panel"><div class="panel-title dashboard-title-row"><div><h3>Omzet 7 Hari Terakhir</h3><span>${activeBusiness()?.name||''}</span></div><button type="button" class="panel-link" data-action="open-weekly-sales">Lihat ringkasan →</button></div><div class="panel-hint">Klik batang untuk detail transaksi hari itu.</div><div class="bars">${days.map((d,i)=>`<button type="button" class="bar-wrap bar-btn" data-action="open-day-sales" data-date="${d}"><div class="bar-value">${vals[i]?rupiah(vals[i]).replace(/,00$/,''):'Rp0'}</div><div class="bar" style="height:${Math.max(4,(vals[i]/max)*150)}px"></div><div class="bar-label">${new Date(d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'short'})}</div></button>`).join('')}</div></section>
-      <section class="panel dashboard-panel"><div class="panel-title dashboard-title-row"><div><h3>${financial?'Business Health':'Operational Alert'}</h3><span>Indikator sesuai role</span></div>${financial?`<button type="button" class="panel-link" data-action="open-health-summary">Lihat detail →</button>`:''}</div>${financial?`<button type="button" class="health-click" data-action="open-health-summary"><div class="health-ring" style="--score:${m.score}"><div class="health-score">${m.score}</div></div><p class="health-note">${healthLabel}</p></button>`:''}<div class="alert-list"><button type="button" class="alert-item alert-btn" data-action="open-low-stock"><span><b>Stok menipis</b><small>Produk perlu restock</small></span><strong>${m.lowStock} ›</strong></button><button type="button" class="alert-item alert-btn" data-action="open-receivable-summary"><span><b>Piutang</b><small>Transaksi belum lunas</small></span><strong>${rupiah(m.receivable)} ›</strong></button>${can('expenses_view')?`<button type="button" class="alert-item alert-btn" data-action="open-expense-summary"><span><b>Biaya bulan ini</b><small>Rincian pengeluaran</small></span><strong>${rupiah(m.exp)} ›</strong></button>`:''}</div></section>
+      <section class="panel dashboard-panel"><div class="panel-title dashboard-title-row"><div><h3>${chartTitle}</h3><span>${escapeHtml(activeBusiness()?.name||'')}</span></div><button type="button" class="panel-link" data-action="open-weekly-sales">Lihat ringkasan →</button></div><div class="panel-hint">${chartHint}</div><div class="bars">${chartBars}</div></section>
+      <section class="panel dashboard-panel"><div class="panel-title dashboard-title-row"><div><h3>${financial?'Business Health':'Operational Alert'}</h3><span>Indikator sesuai role</span></div>${financial?`<button type="button" class="panel-link" data-action="open-health-summary">Lihat detail →</button>`:''}</div>${financial?`<button type="button" class="health-click" data-action="open-health-summary"><div class="health-ring" style="--score:${m.score}"><div class="health-score">${m.score}</div></div><p class="health-note">${healthLabel}</p></button>`:''}${alerts}</section>
     </div>${can('sales_view')?salesTable(m.sales.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))).slice(0,6),'Transaksi Terbaru'):''}`;
 }
 function kpiCard(label,value,foot,action){ return `<button type="button" class="kpi-card kpi-clickable" data-action="${action}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-foot">${foot}</div></button>`; }
@@ -480,15 +492,18 @@ function renderSales(){
 }
 
 function salesTable(sales,title){
-  if(!sales.length) return `<div class="table-card"><div class="table-head"><h3>${title}</h3></div><div class="empty">Belum ada transaksi.</div></div>`;
-  return `<div class="table-card"><div class="table-head"><h3>${title}</h3><span class="muted">${sales.length} baris</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${s.id}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${s.id}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${s.id}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${s.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
+  if(!sales.length) return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3></div><div class="empty">Belum ada transaksi.</div></div>`;
+  if(currentRole()==='warehouse'){
+    return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris fulfilment</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>HP</th><th>Tujuan</th><th>Produk</th><th>Qty</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>`<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_phone||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td><div class="row-actions">${can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Surat Jalan</button>`:'—'}</div></td></tr>`).join('')}</tbody></table></div></div>`;
+  }
+  return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${escapeAttr(s.id)}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${escapeAttr(s.id)}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${escapeAttr(s.id)}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
 }
 
 function renderProducts(){
   if(!can('products_view')) return accessDenied('Produk & Stok');
-  const products=businessData(state.products); const showCost=canSeeCost();
+  const products=businessData(state.products); const showCost=canSeeCost(); const showPrice=currentRole()!=='warehouse';
   return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="productSearch" placeholder="Cari SKU / produk" /></div><div class="toolbar-right">${can('products_create')?'<button class="primary" data-action="add-product">+ Produk Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-products">Export CSV</button>':''}</div></div>
-  <div class="table-card"><div class="table-head"><h3>Master Produk</h3><span class="muted">${products.length} item</span></div><div class="table-wrap"><table><thead><tr><th>SKU</th><th>Nama</th><th>Kategori</th>${showCost?'<th>HPP</th>':''}<th>Harga</th><th>Stok</th><th>Min</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${products.map(p=>{const low=p.category!=='Jasa'&&Number(p.stock)<=Number(p.min_stock);const actions=[(can('products_edit')||can('products_stock_edit'))?`<button type="button" class="row-action edit" data-action="edit-product" data-id="${p.id}">${can('products_edit')?'Edit':'Update Stok'}</button>`:'',can('products_delete')?`<button type="button" class="row-action delete" data-action="delete-product" data-id="${p.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.category)}</td>${showCost?`<td class="money">${rupiah(p.cost)}</td>`:''}<td class="money">${rupiah(p.price)}</td><td>${p.category==='Jasa'?'—':num(p.stock)}</td><td>${p.category==='Jasa'?'—':num(p.min_stock)}</td><td><span class="pill ${low?'bad':'good'}">${p.category==='Jasa'?'Jasa':low?'Restock':'Aman'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
+  <div class="table-card"><div class="table-head"><h3>Master Produk</h3><span class="muted">${products.length} item</span></div><div class="table-wrap"><table><thead><tr><th>SKU</th><th>Nama</th><th>Kategori</th>${showCost?'<th>HPP</th>':''}${showPrice?'<th>Harga</th>':''}<th>Stok</th><th>Min</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${products.map(p=>{const low=p.category!=='Jasa'&&Number(p.stock)<=Number(p.min_stock);const actions=[(can('products_edit')||can('products_stock_edit'))?`<button type="button" class="row-action edit" data-action="edit-product" data-id="${p.id}">${can('products_edit')?'Edit':'Update Stok'}</button>`:'',can('products_delete')?`<button type="button" class="row-action delete" data-action="delete-product" data-id="${p.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.category)}</td>${showCost?`<td class="money">${rupiah(p.cost)}</td>`:''}${showPrice?`<td class="money">${rupiah(p.price)}</td>`:''}<td>${p.category==='Jasa'?'—':num(p.stock)}</td><td>${p.category==='Jasa'?'—':num(p.min_stock)}</td><td><span class="pill ${low?'bad':'good'}">${p.category==='Jasa'?'Jasa':low?'Restock':'Aman'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
 }
 
 function renderExpenses(){
@@ -612,16 +627,16 @@ function renderSettingsPage(){
   const c=state.cloudConfig||{}; const canEdit=can('business_edit');
   return `<div class="panel">
     <div class="setting-block"><div class="status-row"><div><h3>Akun & Role</h3><div class="muted">${state.mode==='cloud'?escapeHtml(state.session?.user?.email||'User cloud'):'Mode demo lokal'}</div></div>${roleBadge()}</div>${state.mode==='cloud'?'<button class="ghost" data-action="logout">Keluar dari Akun</button>':''}</div>
-    ${state.mode==='local'?`<div class="setting-block"><h3>Preview Role Demo</h3><p class="muted">Uji tampilan dan menu untuk role berbeda.</p><div class="segmented role-preview">${Object.keys(ROLE_LABELS).map(r=>`<button class="segment ${currentRole()===r?'active':''}" data-action="preview-role" data-role="${r}">${ROLE_LABELS[r]}</button>`).join('')}</div></div>`:''}
+    ${state.mode==='local'?`<div class="demo-security-warning"><b>MODE DEMO — bukan penyimpanan production</b><span>Data dan Security Key lokal tersimpan di browser. Gunakan hanya untuk mencoba aplikasi, bukan untuk data bisnis sensitif.</span></div><div class="setting-block"><h3>Preview Role Demo</h3><p class="muted">Uji tampilan dan menu untuk role berbeda.</p><div class="segmented role-preview">${Object.keys(ROLE_LABELS).map(r=>`<button class="segment ${currentRole()===r?'active':''}" data-action="preview-role" data-role="${r}">${ROLE_LABELS[r]}</button>`).join('')}</div></div>`:''}
     <div class="setting-block"><div class="status-row"><div><h3>Mode Data</h3><div class="muted">${state.mode==='cloud'?'Cloud Supabase — sinkron antar perangkat':'Demo Lokal — data hanya di browser ini'}</div></div><span class="pill ${state.mode==='cloud'?'good':'warn'}">${state.mode==='cloud'?'CLOUD':'LOCAL'}</span></div></div>
-    ${canEdit?`<div class="setting-block"><h3>Profil Dokumen Bisnis</h3><p class="muted">Dipakai otomatis pada Invoice, Kwitansi, dan Surat Jalan.</p><div class="status-row"><span class="micro">${escapeHtml(activeBusiness()?.address||'Alamat bisnis belum diatur')}</span><button class="soft-btn" data-action="business-profile">Atur Profil Dokumen</button></div></div>`:''}
-    ${currentRole()==='owner'?`<div class="setting-block"><h3>Security Key Hapus Data</h3><p class="muted">PIN 6 digit untuk penghapusan permanen.</p><button class="soft-btn" data-action="security-key">Atur / Ganti Key</button></div>`:''}
+    ${canEdit?`<div class="setting-block"><h3>Profil & Kontrol Bisnis</h3><p class="muted">Profil dokumen dan kebijakan stok.</p><div class="status-row"><span class="micro">${escapeHtml(activeBusiness()?.address||'Alamat bisnis belum diatur')} · Stok minus: <b>${activeBusiness()?.allow_negative_stock?'Diizinkan':'Diblokir'}</b></span><button class="soft-btn" data-action="business-profile">Atur Profil & Stok</button></div></div>`:''}
+    ${currentRole()==='owner'?`<div class="setting-block"><h3>Security Key Hapus Data</h3><p class="muted">PIN 6 digit. Cloud mengunci 15 menit setelah 5 percobaan salah.</p><button class="soft-btn" data-action="security-key">Atur / Ganti Key</button></div>`:''}
     ${can('team_view')?`<div class="setting-block"><h3>Tim & Role</h3><p class="muted">Owner, Admin, Kasir, Finance, Gudang, Staff.</p><button class="soft-btn" data-nav="team">Buka Pengaturan Tim</button></div>`:''}
     ${can('audit')?`<div class="setting-block"><h3>Audit Log</h3><p class="muted">Jejak perubahan data.</p><button class="soft-btn" data-nav="audit">Buka Audit Log</button></div>`:''}
-    <div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Realtime bila Supabase Realtime aktif; polling aman tetap berjalan sebagai fallback.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><button class="soft-btn" data-action="cloud-settings">${c.url?'Ubah Konfigurasi':'Hubungkan Supabase'}</button></div></div>
+    <div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Sinkronisasi aman menggunakan polling ±8 detik. API response tidak disimpan oleh Service Worker.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><button class="soft-btn" data-action="cloud-settings">${c.url?'Ubah Konfigurasi':'Hubungkan Supabase'}</button></div></div>
     ${can('export')||state.mode==='local'?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
-    <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">Format production: INV-YYYY-000001 · KWT-YYYY-000001 · SJ-YYYY-000001. Nomor Cloud dibuat atomik di database agar tidak duplikat antar perangkat.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.7.1 Mobile Responsive</span></div></div>
+    <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8 Security Hardened</span></div></div>
   </div>`;
 }
 
@@ -699,24 +714,33 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('#modalBackdrop
 
 function summaryStat(label,value){ return `<div class="metric-row"><span>${label}</span><strong>${value}</strong></div>`; }
 function openRevenueSummaryModal(){
+  if(currentRole()==='warehouse'||!canSeeFinancial()) return toast('Role ini tidak memiliki akses omzet','error');
   const m=metrics();
   const count=m.sales.length;
   openModal(`<div class="modal-title"><h2>Ringkasan Omzet</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Omzet bulan ini',rupiah(m.revenue))}${summaryStat('Omzet hari ini',rupiah(m.todayRevenue))}${summaryStat('Jumlah transaksi',num(count))}${summaryStat('Rata-rata per transaksi',rupiah(count?m.revenue/count:0))}</div><div class="form-note" style="margin-top:14px">Klik chart omzet 7 hari di dashboard untuk melihat detail penjualan per hari.</div></div>`);
 }
 function openProfitSummaryModal(){
+  if(!canSeeFinancial()) return toast('Role ini tidak memiliki akses profit','error');
   const m=metrics();
   openModal(`<div class="modal-title"><h2>Ringkasan Profit</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Omzet bulan ini',rupiah(m.revenue))}${summaryStat('HPP bulan ini',rupiah(m.hpp))}${summaryStat('Laba kotor',rupiah(m.gross))}${summaryStat('Biaya bulan ini',rupiah(m.exp))}<div class="metric-row total"><span>Laba bersih</span><strong>${rupiah(m.net)}</strong></div>${summaryStat('Margin bersih',((m.margin||0)*100).toFixed(1)+'%')}</div></div>`);
 }
 function openWeeklySalesModal(){
-  const m=metrics();
+  const m=metrics(); const warehouse=currentRole()==='warehouse';
   const rows=[...Array(7)].map((_,i)=>{ const d=new Date(Date.now()-(6-i)*86400000).toISOString().slice(0,10); const daySales=m.sales.filter(s=>s.date===d); const total=daySales.reduce((a,s)=>a+Number(s.total||0),0); const gp=daySales.reduce((a,s)=>a+Number(s.gross_profit||0),0); return {d,count:daySales.length,total,gp}; });
-  openModal(`<div class="modal-title"><h2>Omzet 7 Hari Terakhir</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="table-wrap"><table><thead><tr><th>Hari</th><th>Tanggal</th><th>Transaksi</th><th>Omzet</th><th>Laba Kotor</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(r.d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long'})}</td><td>${fmtDate(r.d)}</td><td>${num(r.count)}</td><td class="money">${rupiah(r.total)}</td><td class="money">${rupiah(r.gp)}</td></tr>`).join('')}</tbody></table></div><div class="form-note" style="margin-top:14px">Tip: klik batang pada chart dashboard untuk membuka detail transaksi per hari.</div></div>`);
+  if(warehouse){
+    openModal(`<div class="modal-title"><h2>Aktivitas Pengiriman 7 Hari</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="table-wrap"><table><thead><tr><th>Hari</th><th>Tanggal</th><th>Transaksi / Pengiriman</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(r.d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long'})}</td><td>${fmtDate(r.d)}</td><td>${num(r.count)}</td></tr>`).join('')}</tbody></table></div></div>`); return;
+  }
+  openModal(`<div class="modal-title"><h2>Omzet 7 Hari Terakhir</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="table-wrap"><table><thead><tr><th>Hari</th><th>Tanggal</th><th>Transaksi</th><th>Omzet</th><th>Laba Kotor</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(r.d+'T00:00:00').toLocaleDateString('id-ID',{weekday:'long'})}</td><td>${fmtDate(r.d)}</td><td>${num(r.count)}</td><td class="money">${rupiah(r.total)}</td><td class="money">${canSeeFinancial()?rupiah(r.gp):'—'}</td></tr>`).join('')}</tbody></table></div><div class="form-note" style="margin-top:14px">Tip: klik batang pada chart dashboard untuk membuka detail transaksi per hari.</div></div>`);
 }
 function openDaySalesModal(dateStr){
-  const m=metrics();
-  const list=m.sales.filter(s=>s.date===dateStr).sort((a,b)=>String(a.invoice_no).localeCompare(String(b.invoice_no)));
+  const m=metrics(); const warehouse=currentRole()==='warehouse';
+  const targetDate=dateStr||today();
+  const list=m.sales.filter(s=>s.date===targetDate).sort((a,b)=>String(a.invoice_no).localeCompare(String(b.invoice_no)));
+  if(warehouse){
+    openModal(`<div class="modal-title"><h2>Pengiriman Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi / pengiriman',num(list.length))}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>Tujuan</th><th>Produk</th><th>Qty</th></tr></thead><tbody>${list.map(s=>`<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td></tr>`).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`); return;
+  }
   const total=list.reduce((a,s)=>a+Number(s.total||0),0); const paid=list.reduce((a,s)=>a+Number(s.paid_amount||0),0); const gp=list.reduce((a,s)=>a+Number(s.gross_profit||0),0);
-  openModal(`<div class="modal-title"><h2>Detail Omzet Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(dateStr))}${summaryStat('Jumlah transaksi',num(list.length))}${summaryStat('Omzet',rupiah(total))}${summaryStat('Dibayar',rupiah(paid))}${summaryStat('Laba kotor',rupiah(gp))}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Status</th></tr></thead><tbody>${list.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);return `<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`);
+  openModal(`<div class="modal-title"><h2>Detail Omzet Harian</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Tanggal',fmtDate(targetDate))}${summaryStat('Jumlah transaksi',num(list.length))}${summaryStat('Omzet',rupiah(total))}${summaryStat('Dibayar',rupiah(paid))}${canSeeFinancial()?summaryStat('Laba kotor',rupiah(gp)):''}</div>${list.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Status</th></tr></thead><tbody>${list.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);return `<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.product_name||'-')}</td><td>${num(s.qty)}</td><td class="money">${rupiah(s.total)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td></tr>`}).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada transaksi pada hari ini.</div>`}</div>`);
 }
 function openHealthSummaryModal(){
   const m=metrics();
@@ -731,6 +755,7 @@ function openLowStockModal(){
   const btn=$('#gotoProductsBtn'); if(btn) btn.onclick=()=>{ closeModal(); navigate('products'); };
 }
 function openReceivableSummaryModal(){
+  if(currentRole()==='warehouse') return toast('Role Gudang tidak memiliki akses piutang','error');
   const rows=businessData(state.sales).map(s=>({...s,due:Math.max(Number(s.total||0)-Number(s.paid_amount||0),0)})).filter(s=>s.due>0).sort((a,b)=>b.due-a.due);
   const total=rows.reduce((a,s)=>a+s.due,0);
   openModal(`<div class="modal-title"><h2>Ringkasan Piutang</h2><button class="modal-close">×</button></div><div class="panel" style="margin:16px"><div class="metric-list">${summaryStat('Total piutang',rupiah(total))}${summaryStat('Invoice belum lunas',num(rows.length))}</div>${rows.length?`<div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Invoice</th><th>Customer</th><th>Total</th><th>Dibayar</th><th>Piutang</th><th>Aksi</th></tr></thead><tbody>${rows.map(s=>`<tr><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td class="money">${rupiah(s.due)}</td><td><button type="button" class="row-action edit receivable-edit" data-id="${s.id}">Kelola Pembayaran</button></td></tr>`).join('')}</tbody></table></div>`:`<div class="empty" style="padding:22px 0">Tidak ada piutang. Semua transaksi sudah lunas.</div>`}</div>`);
@@ -795,7 +820,7 @@ function openSaleModal(saleId=null){
     paid=Math.max(0,Math.min(paid,total));
     let available=Number(p.stock||0);
     if(editing&&existing.product_id===p.id){ const oldP=products.find(x=>x.id===existing.product_id); if(oldP?.category!=='Jasa') available+=Number(existing.qty||0); }
-    if(p.category!=='Jasa'&&qty>available){toast('Stok tidak cukup untuk perubahan ini');return;}
+    if(p.category!=='Jasa'&&!activeBusiness()?.allow_negative_stock&&qty>available){toast('Stok tidak cukup untuk perubahan ini');return;}
     const sale={business_id:state.currentBusinessId,client_request_id:submissionRequestId,date:f.get('date'),invoice_no:editing?existing.invoice_no:null,delivery_no:editing?existing.delivery_no:null,customer:f.get('customer'),customer_phone:f.get('customer_phone'),customer_address:f.get('customer_address'),notes:f.get('notes'),product_id:p.id,product_name:p.name,qty,unit_price:effectivePrice,unit_cost:effectiveCost,discount,total,gross_profit:total-(qty*effectiveCost),payment_method:saleMethod,paid_amount:paid};
     await withSubmitBusy(form,async()=>{try{if(editing) await updateSale(existing.id,sale); else await addSale(sale);closeModal();navigate('sales');toast(editing?'Penjualan diperbarui':'Penjualan tersimpan','success')}catch(err){toast(err.message,'error',4500);throw err}},editing?'Menyimpan...':'Membuat invoice...');
   };
@@ -853,10 +878,11 @@ function openBusinessProfileModal(){
     <label>Email<input name="email" type="email" value="${escapeAttr(b.email||'')}" placeholder="nama@usaha.id"></label>
     <label class="span-2">Alamat Usaha<textarea name="address" rows="3" placeholder="Alamat lengkap usaha">${escapeHtml(b.address||'')}</textarea></label>
     <label class="span-2">Catatan Footer Dokumen<textarea name="document_footer" rows="2" placeholder="Contoh: Terima kasih atas kepercayaan Anda.">${escapeHtml(b.document_footer||'')}</textarea></label>
+    <label class="span-2 checkbox-setting"><input name="allow_negative_stock" type="checkbox" ${b.allow_negative_stock?'checked':''}><span><b>Izinkan stok minus / backorder</b><small>Default tidak aktif. Jika mati, database menolak penjualan ketika stok tidak cukup.</small></span></label>
     <div class="span-2 form-note">Informasi ini akan tampil otomatis pada Invoice, Kwitansi, dan Surat Jalan.</div>
     <div class="span-2 modal-actions"><button type="button" class="ghost modal-close">Batal</button><button type="submit" class="primary">Simpan Profil</button></div>
   </form>`);
-  $('#businessProfileForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const data={name:String(f.get('name')||'').trim(),city:String(f.get('city')||'').trim(),phone:String(f.get('phone')||'').trim(),email:String(f.get('email')||'').trim(),address:String(f.get('address')||'').trim(),document_footer:String(f.get('document_footer')||'').trim()};try{await updateBusinessProfile(data);closeModal();render();toast('Profil dokumen disimpan');}catch(err){toast(err.message)}};
+  $('#businessProfileForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const data={name:String(f.get('name')||'').trim(),city:String(f.get('city')||'').trim(),phone:String(f.get('phone')||'').trim(),email:String(f.get('email')||'').trim(),address:String(f.get('address')||'').trim(),document_footer:String(f.get('document_footer')||'').trim(),allow_negative_stock:f.get('allow_negative_stock')==='on'};try{await updateBusinessProfile(data);closeModal();render();toast('Profil dokumen disimpan');}catch(err){toast(err.message)}};
 }
 
 async function updateBusinessProfile(data){
@@ -872,6 +898,9 @@ async function updateBusinessProfile(data){
 
 function openPrintDocumentModal(saleId){
   const sale=state.sales.find(x=>x.id===saleId&&x.business_id===state.currentBusinessId); if(!sale){toast('Transaksi tidak ditemukan');return;}
+  if(currentRole()==='warehouse'){
+    openModal(`<div class="modal-title"><h2>Cetak Surat Jalan</h2><button class="modal-close">×</button></div><div class="document-modal-wrap"><div class="document-sale-summary"><div><span>Invoice</span><strong>${escapeHtml(sale.invoice_no||'-')}</strong></div><div><span>Surat Jalan</span><strong>${escapeHtml(sale.delivery_no||'-')}</strong></div><div><span>Customer</span><strong>${escapeHtml(sale.customer||'-')}</strong></div><div><span>Qty</span><strong>${num(sale.qty)}</strong></div></div><div class="document-choice-grid"><button type="button" class="document-choice doc-print-btn" data-doc="delivery"><span class="doc-icon">⇢</span><b>Surat Jalan</b><small>Barang, jumlah, tujuan, dan tanda tangan tanpa informasi harga.</small><em>Cetak Surat Jalan →</em></button></div><div class="modal-actions"><button type="button" class="primary modal-close">Selesai</button></div></div>`); $$('.doc-print-btn').forEach(btn=>btn.onclick=()=>printSaleDocument(saleId,'delivery')); return;
+  }
   const due=Math.max(Number(sale.total||0)-Number(sale.paid_amount||0),0);
   const payRows=paymentsForSale(sale.id); const canReceipt=payRows.length>0||Number(sale.paid_amount||0)>0;
   openModal(`<div class="modal-title"><h2>Cetak Dokumen Kasir</h2><button class="modal-close">×</button></div><div class="document-modal-wrap">
@@ -969,7 +998,7 @@ function localDocNumber(type,date=today()){
   const year=String(date||today()).slice(0,4);state.documentSequences=state.documentSequences||{};const key=`${type}-${year}`;state.documentSequences[key]=Number(state.documentSequences[key]||0)+1;persist();return `${type}-${year}-${String(state.documentSequences[key]).padStart(6,'0')}`;
 }
 async function nextDocumentNumber(type,date=today()){
-  if(state.mode==='cloud'){const value=await cloudRequest('/rest/v1/rpc/next_document_number',{method:'POST',body:{bid:state.currentBusinessId,doc_type:type,doc_date:date}});return String(value)}
+  if(state.mode==='cloud') throw new Error('Nomor dokumen Cloud hanya dibuat oleh transaksi server-side');
   return localDocNumber(type,date);
 }
 function newClientRequestId(){return uid()}
@@ -984,12 +1013,20 @@ async function createCloudRow(table,row,requestId){
 async function addPayment(payment){
   if(!requirePermission('payments_manage'))throw new Error('Tidak diizinkan');
   const requestId=payment.client_request_id||newClientRequestId();
-  if(state.mode==='cloud'){payment.receipt_no=payment.receipt_no||await nextDocumentNumber('KWT',payment.payment_date);await createCloudRow('payments',payment,requestId);await cloudLoadBusinessData();}
-  else { const rows=paymentsForSale(payment.sale_id); const row={...payment,id:uid(),client_request_id:requestId,receipt_no:payment.receipt_no||await nextDocumentNumber('KWT',payment.payment_date),payment_no:(Math.max(0,...rows.map(p=>Number(p.payment_no||0)))+1),created_at:new Date().toISOString()}; state.payments.push(row); recalcLocalSalePaid(payment.sale_id); const sale=state.sales.find(s=>s.id===payment.sale_id); localAudit('CREATE','payments',row.id,`${sale?.invoice_no||'Invoice'} · ${row.receipt_no}`,null,row); persist(); }
+  if(state.mode==='cloud'){
+    const result=await cloudRequest('/rest/v1/rpc/record_payment',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_id:payment.sale_id,p_payment_id:null,p_payment_date:payment.payment_date,p_amount:Number(payment.amount||0),p_method:payment.method,p_notes:payment.notes||null,p_request_id:requestId}});
+    if(result?.ok===false)throw new Error(result.error||'Pembayaran gagal');
+    await cloudLoadBusinessData();
+  } else {
+    const rows=paymentsForSale(payment.sale_id); const row={...payment,id:uid(),client_request_id:requestId,receipt_no:payment.receipt_no||await nextDocumentNumber('KWT',payment.payment_date),payment_no:(Math.max(0,...rows.map(p=>Number(p.payment_no||0)))+1),created_at:new Date().toISOString()}; state.payments.push(row); recalcLocalSalePaid(payment.sale_id); const sale=state.sales.find(s=>s.id===payment.sale_id); localAudit('CREATE','payments',row.id,`${sale?.invoice_no||'Invoice'} · ${row.receipt_no}`,null,row); persist();
+  }
 }
 async function updatePayment(id,payment){if(!requirePermission('payments_manage'))throw new Error('Tidak diizinkan');
-  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); await cloudRequest(`/rest/v1/payments?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:payment,prefer:true}); await cloudLoadBusinessData(); }
-  else { const row=(state.payments||[]).find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row)throw new Error('Pembayaran tidak ditemukan'); const before=cloneAuditData(row); Object.assign(row,payment); recalcLocalSalePaid(row.sale_id); const sale=state.sales.find(s=>s.id===row.sale_id); localAudit('UPDATE','payments',row.id,`${sale?.invoice_no||'Invoice'} · Pembayaran #${row.payment_no}`,before,row); persist(); }
+  if(state.mode==='cloud'){
+    const result=await cloudRequest('/rest/v1/rpc/record_payment',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_id:payment.sale_id,p_payment_id:id,p_payment_date:payment.payment_date,p_amount:Number(payment.amount||0),p_method:payment.method,p_notes:payment.notes||null,p_request_id:payment.client_request_id||null}});
+    if(result?.ok===false)throw new Error(result.error||'Pembayaran gagal');
+    await cloudLoadBusinessData();
+  } else { const row=(state.payments||[]).find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row)throw new Error('Pembayaran tidak ditemukan'); const before=cloneAuditData(row); Object.assign(row,payment); recalcLocalSalePaid(row.sale_id); const sale=state.sales.find(s=>s.id===row.sale_id); localAudit('UPDATE','payments',row.id,`${sale?.invoice_no||'Invoice'} · Pembayaran #${row.payment_no}`,before,row); persist(); }
 }
 
 function openBusinessModal(){
@@ -998,9 +1035,9 @@ function openBusinessModal(){
 }
 function openCloudSettings(){
   const c=state.cloudConfig||{};
-  openModal(`<div class="modal-title"><h2>Supabase Cloud</h2><button class="modal-close">×</button></div><div class="form-note">Gunakan Project URL dan Publishable/Anon Key. Jangan masukkan Service Role Key ke browser.</div><form id="cloudForm" class="form-grid single" style="margin-top:14px"><label>Project URL<input name="url" value="${escapeAttr(c.url||'')}" placeholder="https://xxxx.supabase.co" required></label><label>Publishable / Anon Key<input name="key" value="${escapeAttr(c.key||'')}" placeholder="sb_publishable_..." required></label><div class="modal-actions"><button type="button" class="ghost" id="useLocalBtn">Mode Demo</button><button class="primary">Simpan & Login</button></div></form>`);
-  $('#useLocalBtn').onclick=()=>{state.mode='local';state.session=null;persist();closeModal();stopPolling();render();toast('Mode Demo aktif')};
-  $('#cloudForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);state.cloudConfig={url:String(f.get('url')).replace(/\/$/,''),key:String(f.get('key'))};localStorage.setItem('bc_cloud_config',JSON.stringify(state.cloudConfig));state.mode='cloud';state.session=loadSession();closeModal();if(!state.session) showAuth(); else cloudBootstrap();};
+  openModal(`<div class="modal-title"><h2>Supabase Cloud</h2><button class="modal-close">×</button></div><div class="form-note">Gunakan Project URL dan Publishable/Anon Key. Jangan masukkan Service Role Key ke browser.</div><form id="cloudForm" class="form-grid single" style="margin-top:14px"><label>Project URL<input name="url" value="${escapeAttr(c.url||'')}" placeholder="https://xxxx.supabase.co" required></label><label>Publishable / Anon Key<input name="key" value="${escapeAttr(c.key||'')}" placeholder="sb_publishable_..." required></label><label>Cloudflare Turnstile Site Key <span class="muted">(opsional)</span><input name="turnstileSiteKey" value="${escapeAttr(c.turnstileSiteKey||'')}" placeholder="Aktifkan CAPTCHA production"></label><div class="form-note">Jika Site Key diisi, login/daftar mewajibkan CAPTCHA. Aktifkan CAPTCHA juga pada pengaturan Auth Supabase.</div><div class="modal-actions"><button type="button" class="ghost" id="useLocalBtn">Mode Demo</button><button class="primary">Simpan & Login</button></div></form>`);
+  $('#useLocalBtn').onclick=()=>{state.mode='local';clearSession();persist();closeModal();stopPolling();render();toast('Mode Demo aktif')};
+  $('#cloudForm').onsubmit=e=>{e.preventDefault();const f=new FormData(e.target);const next={url:String(f.get('url')).replace(/\/$/,''),key:String(f.get('key')),turnstileSiteKey:String(f.get('turnstileSiteKey')||'').trim()};const changed=next.url!==state.cloudConfig?.url||next.key!==state.cloudConfig?.key;state.cloudConfig=next;localStorage.setItem('bc_cloud_config',JSON.stringify(state.cloudConfig));if(changed)clearSession();state.mode='cloud';state.session=loadSession();closeModal();if(!state.session) showAuth(); else cloudBootstrap();};
 }
 
 async function addProduct(product){
@@ -1010,9 +1047,14 @@ async function addProduct(product){
 }
 async function addSale(sale){
   if(!requirePermission('sales_create'))throw new Error('Tidak diizinkan');const requestId=sale.client_request_id||newClientRequestId();
-  sale.invoice_no=sale.invoice_no||await nextDocumentNumber('INV',sale.date);sale.delivery_no=sale.delivery_no||await nextDocumentNumber('SJ',sale.date);
-  if(state.mode==='cloud'){const initialPaid=Number(sale.paid_amount||0);sale.paid_amount=0;const inserted=await createCloudRow('sales',sale,requestId);const saleId=inserted?.id||((await cloudRequest(`/rest/v1/sales?select=id&business_id=eq.${encodeURIComponent(state.currentBusinessId)}&client_request_id=eq.${encodeURIComponent(requestId)}&limit=1`))?.[0]?.id);if(initialPaid>0&&saleId)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:saleId,payment_date:sale.date,amount:initialPaid,method:sale.payment_method,notes:'Pembayaran awal'});await cloudLoadBusinessData();}
-  else{const p=state.products.find(x=>x.id===sale.product_id);if(p&&p.category!=='Jasa')p.stock=Math.max(0,Number(p.stock)-Number(sale.qty));const initialPaid=Number(sale.paid_amount||0);const row={...sale,id:uid(),client_request_id:requestId,paid_amount:0,created_at:new Date().toISOString()};state.sales.push(row);localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,row);if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();}
+  if(state.mode==='cloud'){
+    const result=await cloudRequest('/rest/v1/rpc/create_sale_with_payment',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_product_id:sale.product_id,p_qty:Number(sale.qty||0),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Cash',p_initial_paid:Number(sale.paid_amount||0),p_request_id:requestId}});
+    if(result?.ok===false)throw new Error(result.error||'Gagal membuat transaksi');
+    await cloudLoadBusinessData();
+  } else {
+    sale.invoice_no=sale.invoice_no||await nextDocumentNumber('INV',sale.date);sale.delivery_no=sale.delivery_no||await nextDocumentNumber('SJ',sale.date);
+    const p=state.products.find(x=>x.id===sale.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock)-Number(sale.qty);const initialPaid=Number(sale.paid_amount||0);const row={...sale,id:uid(),client_request_id:requestId,paid_amount:0,created_at:new Date().toISOString()};state.sales.push(row);localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,row);if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();
+  }
 }
 async function addExpense(exp){
   if(!requirePermission('expenses_edit'))throw new Error('Tidak diizinkan');const requestId=exp.client_request_id||newClientRequestId();
@@ -1020,7 +1062,7 @@ async function addExpense(exp){
 }
 
 async function updateProduct(id,product){if(!requirePermission('products_edit'))throw new Error('Tidak diizinkan');
-  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); await cloudRequest(`/rest/v1/products?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:product}); await cloudLoadBusinessData(); }
+  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); const clean={sku:product.sku,name:product.name,category:product.category,unit:product.unit,cost:Number(product.cost||0),price:Number(product.price||0),stock:Number(product.stock||0),min_stock:Number(product.min_stock||0)}; await cloudRequest(`/rest/v1/products?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:clean}); await cloudLoadBusinessData(); }
   else { const row=state.products.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row) throw new Error('Produk tidak ditemukan'); const before=cloneAuditData(row); Object.assign(row,product); localAudit('UPDATE','products',row.id,`${row.sku} · ${row.name}`,before,row); persist(); }
   toast('Produk diperbarui');
 }
@@ -1030,19 +1072,20 @@ async function updateProductStock(id,patch){if(!requirePermission('products_stoc
   else {const row=state.products.find(x=>x.id===id&&x.business_id===state.currentBusinessId);if(!row)throw new Error('Produk tidak ditemukan');const before=cloneAuditData(row);Object.assign(row,clean);localAudit('UPDATE','stock',row.id,`${row.sku} · ${row.name}`,before,row);persist();}
 }
 async function updateSale(id,sale){if(!requirePermission('sales_edit'))throw new Error('Tidak diizinkan');
-  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); await cloudRequest(`/rest/v1/sales?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:sale}); await cloudLoadBusinessData(); }
-  else {
+  if(state.mode==='cloud'){
+    const result=await cloudRequest('/rest/v1/rpc/update_sale_secure',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_id:id,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_product_id:sale.product_id,p_qty:Number(sale.qty||0),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Tempo'}});
+    if(result?.ok===false)throw new Error(result.error||'Gagal mengubah transaksi'); await cloudLoadBusinessData();
+  } else {
     const old=state.sales.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!old) throw new Error('Transaksi tidak ditemukan');
-    const before=cloneAuditData(old);
-    const oldP=state.products.find(x=>x.id===old.product_id), newP=state.products.find(x=>x.id===sale.product_id);
+    const before=cloneAuditData(old); const oldP=state.products.find(x=>x.id===old.product_id), newP=state.products.find(x=>x.id===sale.product_id);
     if(oldP&&oldP.category!=='Jasa') oldP.stock=Number(oldP.stock||0)+Number(old.qty||0);
-    if(newP&&newP.category!=='Jasa') newP.stock=Math.max(0,Number(newP.stock||0)-Number(sale.qty||0));
+    if(newP&&newP.category!=='Jasa') newP.stock=Number(newP.stock||0)-Number(sale.qty||0);
     Object.assign(old,sale); localAudit('UPDATE','sales',old.id,`${old.invoice_no} · ${old.customer||old.product_name}`,before,old); persist();
   }
   toast('Penjualan diperbarui');
 }
 async function updateExpense(id,expense){if(!requirePermission('expenses_edit'))throw new Error('Tidak diizinkan');
-  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); await cloudRequest(`/rest/v1/expenses?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:expense,prefer:true}); await cloudLoadBusinessData(); }
+  if(state.mode==='cloud'){ const b=encodeURIComponent(state.currentBusinessId); const clean={date:expense.date,category:expense.category,description:expense.description,amount:Number(expense.amount||0),payment_method:expense.payment_method}; await cloudRequest(`/rest/v1/expenses?id=eq.${encodeURIComponent(id)}&business_id=eq.${b}`,{method:'PATCH',body:clean,prefer:true}); await cloudLoadBusinessData(); }
   else { const row=state.expenses.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row) throw new Error('Biaya tidak ditemukan'); const before=cloneAuditData(row); Object.assign(row,expense); localAudit('UPDATE','expenses',row.id,row.description,before,row); persist(); }
   toast('Biaya diperbarui');
 }
@@ -1059,14 +1102,14 @@ async function hasDeleteSecurityKey(){
 }
 async function saveDeleteSecurityKey(pin,currentPin=''){
   if(!/^\d{6}$/.test(pin)) throw new Error('Security Key harus 6 digit angka');
-  if(state.mode==='cloud'){ await cloudRequest('/rest/v1/rpc/set_delete_pin',{method:'POST',body:{bid:state.currentBusinessId,pin}}); return; }
+  if(state.mode==='cloud'){ const result=await cloudRequest('/rest/v1/rpc/set_delete_pin_v2',{method:'POST',body:{p_bid:state.currentBusinessId,p_new_pin:pin,p_current_pin:currentPin||null}}); if(result?.ok===false)throw new Error(result.error||'Security Key gagal disimpan'); return; }
   const keys=loadDeleteKeys(); const old=keys[state.currentBusinessId]; const existed=Boolean(old);
   if(old){ if(!currentPin) throw new Error('Masukkan Security Key saat ini'); const currentHash=await hashPin(currentPin); if(currentHash!==old) throw new Error('Security Key saat ini salah'); }
   keys[state.currentBusinessId]=await hashPin(pin); saveDeleteKeys(keys); localAudit('SECURITY','security',null,'Security Key Hapus Data',{configured:existed},{configured:true}); persist();
 }
 async function openSecurityKeyModal(afterSetup=null){
   let exists=false; try{exists=await hasDeleteSecurityKey();}catch(e){toast(e.message);return;}
-  const needCurrent=state.mode==='local'&&exists;
+  const needCurrent=exists;
   openModal(`<div class="modal-title"><h2>${exists?'Ganti':'Buat'} Security Key</h2><button class="modal-close">×</button></div><form id="securityKeyForm" class="form-grid single">
     <div class="security-callout"><b>Proteksi penghapusan permanen</b><span>Security Key berupa 6 digit angka dan akan diminta setiap kali menghapus transaksi, produk, atau biaya.</span></div>
     ${needCurrent?'<label>Security Key Saat Ini<input name="current_pin" type="password" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" placeholder="••••••" required></label>':''}
@@ -1091,7 +1134,7 @@ async function requestSecureDelete(entity,id,label,returnPage){
 async function secureDeleteRecord(entity,id,pin){
   const perm=entity==='sale'?'sales_delete':entity==='product'?'products_delete':entity==='expense'?'expenses_delete':'payments_delete';if(!requirePermission(perm))throw new Error('Tidak diizinkan');
   if(!/^\d{6}$/.test(pin)) throw new Error('Security Key harus 6 digit');
-  if(state.mode==='cloud'){ await cloudRequest('/rest/v1/rpc/secure_delete_record',{method:'POST',body:{bid:state.currentBusinessId,entity,record_id:id,pin}}); await cloudLoadBusinessData(); return; }
+  if(state.mode==='cloud'){ const result=await cloudRequest('/rest/v1/rpc/secure_delete_record_v2',{method:'POST',body:{p_bid:state.currentBusinessId,p_entity:entity,p_record_id:id,p_pin:pin}}); if(result?.ok===false)throw new Error(result.error||'Penghapusan ditolak'); await cloudLoadBusinessData(); return; }
   const expected=loadDeleteKeys()[state.currentBusinessId]; if(!expected) throw new Error('Security Key belum diatur'); if(await hashPin(pin)!==expected) throw new Error('Security Key salah');
   if(entity==='sale'){
     const row=state.sales.find(x=>x.id===id&&x.business_id===state.currentBusinessId); if(!row) throw new Error('Transaksi tidak ditemukan');
@@ -1107,8 +1150,8 @@ async function secureDeleteRecord(entity,id,pin){
 }
 
 async function addBusiness(name){
-  if(state.mode==='cloud'){ const rows=await cloudRequest('/rest/v1/businesses',{method:'POST',body:{name,owner_id:state.session.user.id},prefer:true});state.businesses.push(rows[0]);state.currentBusinessId=rows[0].id;await cloudLoadBusinessData(); }
-  else { const b={id:uid(),name,owner_id:'local'};state.businesses.push(b);state.currentBusinessId=b.id;localAudit('CREATE','business',b.id,b.name,null,b);persist(); }
+  if(state.mode==='cloud'){ const rows=await cloudRequest('/rest/v1/businesses',{method:'POST',body:{name,owner_id:state.session.user.id,allow_negative_stock:false},prefer:true});state.businesses.push(rows[0]);state.currentBusinessId=rows[0].id;await cloudLoadBusinessData(); }
+  else { const b={id:uid(),name,owner_id:'local',allow_negative_stock:false};state.businesses.push(b);state.currentBusinessId=b.id;localAudit('CREATE','business',b.id,b.name,null,b);persist(); }
   toast('Bisnis ditambahkan');
 }
 
@@ -1117,13 +1160,14 @@ function openMemberModal(existing=null){
   if(state.mode!=='cloud'){toast('Kelola anggota tersedia pada Cloud','error');return}if(currentRole()!=='owner'){toast('Hanya owner yang dapat mengubah anggota','error');return}
   const editing=Boolean(existing);const roles=['admin','cashier','finance','warehouse','staff'];openModal(`<div class="modal-title"><h2>${editing?'Ubah Role':'Tambah Anggota'}</h2><button class="modal-close">×</button></div><form id="memberForm" class="form-grid single"><div class="form-note">Anggota harus sudah memiliki akun BizControl/Supabase dengan email yang sama.</div><label>Email<input name="email" type="email" value="${escapeAttr(existing?.email||'')}" ${editing?'readonly':''} required></label><label>Role<select name="role">${roles.map(r=>`<option value="${r}" ${r===(existing?.role||'cashier')?'selected':''}>${ROLE_LABELS[r]}</option>`).join('')}</select></label><div class="modal-actions"><button type="button" class="ghost modal-close">Batal</button><button type="submit" class="primary">${editing?'Simpan Role':'Tambah Anggota'}</button></div></form>`);const form=$('#memberForm');form.onsubmit=async e=>{e.preventDefault();const f=new FormData(form);await withSubmitBusy(form,async()=>{try{if(editing)await cloudRequest('/rest/v1/rpc/update_business_member_role',{method:'POST',body:{bid:state.currentBusinessId,member_user_id:existing.user_id,new_role:f.get('role')}});else await cloudRequest('/rest/v1/rpc/add_business_member_by_email',{method:'POST',body:{bid:state.currentBusinessId,member_email:f.get('email'),new_role:f.get('role')}});await cloudLoadTeam();closeModal();navigate('team');toast('Hak akses diperbarui','success')}catch(err){toast(err.message,'error');throw err}})}}
 async function removeMember(userId,email){if(currentRole()!=='owner')return toast('Hanya owner','error');if(!confirm(`Hapus ${email||'anggota'} dari bisnis ini?`))return;try{await cloudRequest('/rest/v1/rpc/remove_business_member',{method:'POST',body:{bid:state.currentBusinessId,member_user_id:userId}});await cloudLoadTeam();render();toast('Anggota dihapus','success')}catch(e){toast(e.message,'error')}}
-async function logoutCloud(){try{stopPolling();localStorage.removeItem('bc_session');state.session=null;state.mode='local';state.currentRole='owner';hideAuth();render();toast('Berhasil keluar','success')}catch(e){toast(e.message,'error')}}
+async function logoutCloud(){try{stopPolling();clearSession();state.mode='local';state.currentRole='owner';hideAuth();render();toast('Berhasil keluar','success')}catch(e){toast(e.message,'error')}}
 
 // -------- Cloud / Supabase REST --------
 function loadCloudConfig(){ try{return JSON.parse(localStorage.getItem('bc_cloud_config')||'null')}catch{return null} }
-function loadSession(){ try{return JSON.parse(localStorage.getItem('bc_session')||'null')}catch{return null} }
-function saveSession(s){ localStorage.setItem('bc_session',JSON.stringify(s)); state.session=s; }
-let refreshPromise=null; let realtimeClient=null; let realtimeChannel=null; let realtimeDebounce=null;
+function loadSession(){ try{let raw=sessionStorage.getItem('bc_session');if(!raw){const legacy=localStorage.getItem('bc_session');if(legacy){sessionStorage.setItem('bc_session',legacy);localStorage.removeItem('bc_session');raw=legacy;}}return JSON.parse(raw||'null')}catch{return null} }
+function saveSession(s){ sessionStorage.setItem('bc_session',JSON.stringify(s)); localStorage.removeItem('bc_session'); state.session=s; }
+function clearSession(){sessionStorage.removeItem('bc_session');localStorage.removeItem('bc_session');state.session=null;}
+let refreshPromise=null; let turnstileWidgetId=null;
 async function refreshCloudSession(){
   if(refreshPromise)return refreshPromise;const c=state.cloudConfig||loadCloudConfig();const rt=state.session?.refresh_token;if(!c||!rt)throw new Error('Sesi berakhir. Silakan login kembali.');
   refreshPromise=(async()=>{const res=await fetch(c.url+'/auth/v1/token?grant_type=refresh_token',{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify({refresh_token:rt})});const data=await res.json();if(!res.ok)throw new Error(data.message||'Gagal memperbarui sesi');saveSession(data);return data})().finally(()=>refreshPromise=null);return refreshPromise;
@@ -1138,11 +1182,26 @@ async function cloudRequest(path,{method='GET',body=null,prefer=false,retry=true
     if(!res.ok)throw new Error(data?.message||data?.msg||data?.error_description||data?.hint||`HTTP ${res.status}`);setSyncState('idle');return data;
   }catch(err){const msg=err.name==='AbortError'?'Koneksi timeout. Coba lagi.':err.message;setSyncState('error',msg);throw new Error(msg)}finally{clearTimeout(timeout)}
 }
+async function ensureTurnstile(){
+  const key=(state.cloudConfig||loadCloudConfig())?.turnstileSiteKey; const box=$('#turnstileBox');
+  if(!box) return; if(!key){box.classList.add('hidden');box.innerHTML='';turnstileWidgetId=null;return;}
+  box.classList.remove('hidden');
+  if(!window.turnstile){
+    await new Promise((resolve,reject)=>{const existing=document.querySelector('script[data-bc-turnstile]');if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}const sc=document.createElement('script');sc.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';sc.async=true;sc.defer=true;sc.dataset.bcTurnstile='1';sc.onload=resolve;sc.onerror=()=>reject(new Error('CAPTCHA gagal dimuat'));document.head.appendChild(sc);});
+  }
+  box.innerHTML=''; turnstileWidgetId=window.turnstile.render(box,{sitekey:key,theme:'light'});
+}
+function captchaToken(){const key=(state.cloudConfig||loadCloudConfig())?.turnstileSiteKey;if(!key)return null;if(!window.turnstile||turnstileWidgetId===null)throw new Error('CAPTCHA belum siap. Coba beberapa detik lagi.');const token=window.turnstile.getResponse(turnstileWidgetId);if(!token)throw new Error('Selesaikan CAPTCHA terlebih dahulu.');return token;}
+function resetCaptcha(){try{if(window.turnstile&&turnstileWidgetId!==null)window.turnstile.reset(turnstileWidgetId)}catch{}}
 async function authSubmit(email,password,mode){
   const c=state.cloudConfig||loadCloudConfig(); if(!c) throw new Error('Isi konfigurasi Supabase dulu');
-  const endpoint=mode==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password';
-  const res=await fetch(c.url+endpoint,{method:'POST',headers:{'apikey':c.key,'Content-Type':'application/json'},body:JSON.stringify({email,password})});
-  const data=await res.json(); if(!res.ok) throw new Error(data.msg||data.error_description||data.message||'Autentikasi gagal');
+  if(String(password||'').length<8)throw new Error('Password minimal 8 karakter');
+  const endpoint=mode==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password'; const token=captchaToken();
+  const payload={email,password}; if(token)payload.gotrue_meta_security={captcha_token:token};
+  const res=await fetch(c.url+endpoint,{method:'POST',headers:{'apikey':c.key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  let data={};try{data=await res.json()}catch{}
+  resetCaptcha();
+  if(!res.ok){if(res.status===429)throw new Error('Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.');throw new Error(data.msg||data.error_description||data.message||'Autentikasi gagal');}
   if(mode==='signup'&&!data.access_token){toast('Akun dibuat. Cek email jika konfirmasi diaktifkan.');return null;} saveSession(data); return data;
 }
 async function cloudBootstrap(){
@@ -1153,7 +1212,7 @@ async function cloudBootstrap(){
     if(!state.businesses.length){ await addBusiness('Bisnis Saya'); }
     if(!state.currentBusinessId || !state.businesses.some(b=>b.id===state.currentBusinessId)) state.currentBusinessId=state.businesses[0]?.id;
     await cloudLoadBusinessData(); hideAuth(); startPolling(); render(); toast('Cloud tersambung');
-  }catch(err){ console.error(err); toast(err.message); if(/JWT|token|session|401/i.test(err.message)){localStorage.removeItem('bc_session');state.session=null;showAuth();} }
+  }catch(err){ console.error(err); toast(err.message); if(/JWT|token|session|401/i.test(err.message)){clearSession();showAuth();} }
 }
 async function cloudLoadBusinesses(){ const rows=await cloudRequest('/rest/v1/businesses?select=*&order=created_at.asc'); state.businesses=rows||[]; const memberships=await cloudRequest('/rest/v1/business_members?select=business_id,user_id,role&user_id=eq.'+encodeURIComponent(state.session.user.id)).catch(()=>[]);state.memberships=memberships||[]; }
 function resolveCloudRole(){const b=activeBusiness();if(!b)return'staff';if(b.owner_id===state.session?.user?.id)return'owner';return state.memberships?.find(m=>m.business_id===b.id&&m.user_id===state.session?.user?.id)?.role||'staff'}
@@ -1164,7 +1223,7 @@ async function cloudLoadBusinessData(){
   const queries=[];
   queries.push(cloudRequest('/rest/v1/rpc/list_products_for_business',{method:'POST',body:{bid:state.currentBusinessId}}).catch(e=>{console.warn('Products RPC:',e.message);return []}));
   queries.push(can('sales_view')?cloudRequest('/rest/v1/rpc/list_sales_for_business',{method:'POST',body:{bid:state.currentBusinessId}}):Promise.resolve([]));
-  queries.push(can('sales_view')?cloudRequest(`/rest/v1/payments?select=*&business_id=eq.${b}&order=payment_date.asc,payment_no.asc`).catch(()=>[]):Promise.resolve([]));
+  queries.push(can('payments_manage')?cloudRequest(`/rest/v1/payments?select=*&business_id=eq.${b}&order=payment_date.asc,payment_no.asc`).catch(()=>[]):Promise.resolve([]));
   queries.push(can('expenses_view')?cloudRequest(`/rest/v1/expenses?select=*&business_id=eq.${b}&order=date.desc,created_at.desc`):Promise.resolve([]));
   queries.push(can('audit')?cloudRequest(`/rest/v1/audit_logs?select=*&business_id=eq.${b}&order=created_at.desc&limit=250`).catch(()=>[]):Promise.resolve([]));
   const [products,sales,payments,expenses,auditLogs]=await Promise.all(queries);state.products=products||[];state.sales=sales||[];state.payments=payments||[];state.expenses=expenses||[];state.auditLogs=auditLogs||[];await cloudLoadTeam();state.lastSync=new Date().toISOString();setSyncState('idle');
@@ -1173,18 +1232,17 @@ async function refreshAuditLog(){
   if(state.mode==='cloud'){ try{await cloudLoadBusinessData();navigate('audit');toast('Audit Log diperbarui');}catch(err){toast(err.message);} }
   else { navigate('audit'); toast('Audit Log lokal sudah terbaru'); }
 }
-function startPolling(){stopPolling();pollTimer=setInterval(async()=>{if(state.mode==='cloud'&&state.session&&isOnline()){try{await cloudLoadBusinessData();if($('#modalBackdrop').classList.contains('hidden'))render()}catch(e){console.warn(e)}}},10000);startRealtime();}
-function startRealtime(){stopRealtime();if(state.mode!=='cloud'||!state.currentBusinessId||!window.supabase?.createClient)return;try{const c=state.cloudConfig||loadCloudConfig();realtimeClient=window.supabase.createClient(c.url,c.key,{auth:{persistSession:false,autoRefreshToken:false}});if(state.session?.access_token)realtimeClient.realtime.setAuth(state.session.access_token);const filter=`business_id=eq.${state.currentBusinessId}`;realtimeChannel=realtimeClient.channel(`bizcontrol-sync-${state.currentBusinessId}-${Date.now()}`);realtimeChannel.on('postgres_changes',{event:'INSERT',schema:'public',table:'sync_events',filter},()=>scheduleRealtimeRefresh());realtimeChannel.subscribe(status=>{if(status==='SUBSCRIBED')setSyncState('idle');else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT')setSyncState('error','Realtime terputus; polling tetap aktif')})}catch(e){console.warn('Realtime fallback ke polling:',e.message)}}
-function scheduleRealtimeRefresh(){clearTimeout(realtimeDebounce);realtimeDebounce=setTimeout(async()=>{try{await cloudLoadBusinesses();await cloudLoadBusinessData();if($('#modalBackdrop').classList.contains('hidden'))render();else renderSyncBadge()}catch(e){console.warn(e)}},450)}
-function stopRealtime(){clearTimeout(realtimeDebounce);if(realtimeClient&&realtimeChannel){try{realtimeClient.removeChannel(realtimeChannel)}catch{}}realtimeChannel=null;realtimeClient=null;}
-function stopPolling(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}stopRealtime();}
+function startPolling(){stopPolling();pollTimer=setInterval(async()=>{if(state.mode==='cloud'&&state.session&&isOnline()){try{await cloudLoadBusinesses();await cloudLoadBusinessData();if($('#modalBackdrop').classList.contains('hidden'))render();else renderSyncBadge()}catch(e){console.warn(e)}}},8000);}
+function startRealtime(){startPolling();}
+function stopRealtime(){}
+function stopPolling(){if(pollTimer){clearInterval(pollTimer);pollTimer=null;}}
 
-function showAuth(){ $('#authView').classList.remove('hidden'); $('#appShell').classList.add('hidden'); }
+function showAuth(){ $('#authView').classList.remove('hidden'); $('#appShell').classList.add('hidden'); ensureTurnstile().catch(e=>toast(e.message,'error')); }
 function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').classList.remove('hidden'); }
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.7.1',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.8',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),500);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),750)}
@@ -1204,9 +1262,9 @@ $('#modalBackdrop').classList.add('hidden');
 $('#authLoginTab').onclick=()=>{authMode='login';$('#authLoginTab').classList.add('active');$('#authSignupTab').classList.remove('active');$('#authSubmit').textContent='Masuk'};
 $('#authSignupTab').onclick=()=>{authMode='signup';$('#authSignupTab').classList.add('active');$('#authLoginTab').classList.remove('active');$('#authSubmit').textContent='Daftar'};
 $('#authForm').onsubmit=async e=>{e.preventDefault();try{const s=await authSubmit($('#authEmail').value,$('#authPassword').value,authMode);if(s) await cloudBootstrap();}catch(err){toast(err.message)}};
-$('#backToDemo').onclick=()=>{state.mode='local';state.session=null;hideAuth();stopPolling();render();};
+$('#backToDemo').onclick=()=>{state.mode='local';clearSession();hideAuth();stopPolling();render();};
 
-window.addEventListener('online',async()=>{toast('Koneksi kembali. Menyinkronkan...','success');if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();startRealtime();render()}catch(e){toast(e.message,'error')}}});
+window.addEventListener('online',async()=>{toast('Koneksi kembali. Menyinkronkan...','success');if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();startPolling();render()}catch(e){toast(e.message,'error')}}});
 window.addEventListener('offline',()=>{setSyncState('offline');toast('Internet terputus. Jangan tutup form yang belum tersimpan.','error',5000)});
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&state.mode==='cloud'&&isOnline()){try{await cloudLoadBusinesses();await cloudLoadBusinessData();render()}catch(e){console.warn(e)}}});
 
