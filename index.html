@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#143c35" />
-  <meta name="description" content="BizControl Online V1.7 - fondasi production: role user, cloud sync, backup/export, nomor dokumen aman, error handling, dan beta testing." />
-      <style>
+  <meta name="description" content="BizControl Online V1.7.1 - fondasi production: role user, cloud sync, backup/export, nomor dokumen aman, error handling, dan beta testing." />
+  
+  
+  <style>
 :root{
   --navy:#17324d;--navy2:#0f263a;--green:#1f7a5a;--green2:#143c35;--mint:#eaf3f0;
   --bg:#f5f7f9;--card:#fff;--text:#17212b;--muted:#667085;--border:#e2e8f0;--yellow:#fff2cc;
@@ -137,6 +139,71 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
 @media(max-width:760px){.role-banner{align-items:flex-start;flex-direction:column}.mobile-nav{grid-template-columns:repeat(var(--mobile-count,5),1fr)}.role-guide{grid-template-columns:repeat(2,minmax(0,1fr))}.quick-grid-dynamic{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.role-guide,.quick-grid-dynamic{grid-template-columns:1fr}.role-banner>div{width:100%;justify-content:space-between}}
 
+
+/* V1.7.1 — Mobile-first card tables */
+@media(max-width:760px){
+  .table-card{overflow:visible;background:transparent;border:0;box-shadow:none}
+  .table-card>.table-head{background:#fff;border:1px solid var(--border);border-radius:13px;padding:12px 14px;margin-bottom:9px;box-shadow:var(--shadow)}
+  .responsive-table-wrap{overflow:visible!important;margin:0!important}
+  table.responsive-table{display:block;width:100%;min-width:0!important;border-collapse:separate;background:transparent;font-size:12px}
+  table.responsive-table thead{display:none}
+  table.responsive-table tbody{display:grid;gap:10px;padding:0}
+  table.responsive-table tbody tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 8px;background:#fff;border:1px solid var(--border);border-radius:14px;padding:8px 10px;box-shadow:0 5px 18px rgba(16,24,40,.055);overflow:hidden;min-width:0}
+  table.responsive-table tbody tr:hover{border-color:#cbdcd5}
+  table.responsive-table tbody td{display:grid;align-content:start;gap:3px;min-width:0;padding:7px 5px;border:0!important;text-align:left!important;white-space:normal!important;overflow-wrap:anywhere;word-break:break-word}
+  table.responsive-table tbody td::before{content:attr(data-label);font-size:8px;line-height:1.2;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:850}
+  table.responsive-table tbody td.money{font-variant-numeric:tabular-nums}
+  table.responsive-table tbody td.mobile-empty-cell{grid-column:1/-1;padding:0}
+  table.responsive-table tbody td.mobile-empty-cell::before{display:none}
+  table.responsive-table tbody td[data-label="Customer"],
+  table.responsive-table tbody td[data-label="Produk"],
+  table.responsive-table tbody td[data-label="Nama"],
+  table.responsive-table tbody td[data-label="Deskripsi"],
+  table.responsive-table tbody td[data-label="Ringkasan"],
+  table.responsive-table tbody td[data-label="User"],
+  table.responsive-table tbody td[data-label="Data"],
+  table.responsive-table tbody td[data-label="Catatan"],
+  table.responsive-table tbody td[data-label="Aksi"]{grid-column:1/-1}
+  table.responsive-table tbody td[data-label="Aksi"]{border-top:1px solid #edf0f3!important;margin-top:5px;padding-top:10px}
+  table.responsive-table tbody td[data-label="Aksi"] .row-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;width:100%;white-space:normal}
+  table.responsive-table tbody td[data-label="Aksi"] .row-action{min-height:39px;width:100%;padding:8px 7px;font-size:10px;display:grid;place-items:center;line-height:1.2}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Invoice"]{order:-20;font-size:13px;font-weight:900;color:var(--navy)}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Status"]{order:-19;align-items:start}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Tanggal"]{order:-18}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Customer"]{order:-17;font-weight:700}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Produk"]{order:-16}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Qty"]{order:-15}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Total"]{order:-14;font-size:13px;font-weight:850;color:var(--navy)}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Dibayar"]{order:-13}
+  table.responsive-table[data-mobile-type="sales"] tbody td[data-label="Aksi"]{order:50}
+  table.responsive-table[data-mobile-type="products"] tbody td[data-label="Nama"]{order:-20;font-size:13px;font-weight:850;color:var(--navy)}
+  table.responsive-table[data-mobile-type="products"] tbody td[data-label="Status"]{order:-19}
+  table.responsive-table[data-mobile-type="products"] tbody td[data-label="SKU"]{order:-18}
+  table.responsive-table[data-mobile-type="products"] tbody td[data-label="Aksi"]{order:50}
+  table.responsive-table[data-mobile-type="expenses"] tbody td[data-label="Deskripsi"]{order:-20;font-size:13px;font-weight:800;color:var(--navy)}
+  table.responsive-table[data-mobile-type="expenses"] tbody td[data-label="Nilai"]{order:-19;font-size:13px;font-weight:850;color:var(--navy)}
+  table.responsive-table[data-mobile-type="expenses"] tbody td[data-label="Aksi"]{order:50}
+  table.responsive-table[data-mobile-type="audit"] tbody td[data-label="Ringkasan"]{background:#f8fafc;border-radius:9px!important;padding:9px;margin:3px 0}
+  table.responsive-table[data-mobile-type="audit"] tbody td[data-label="Detail"]{grid-column:1/-1;border-top:1px solid #edf0f3!important;margin-top:4px;padding-top:9px}
+  table.responsive-table[data-mobile-type="audit"] tbody td[data-label="Detail"] .row-action{width:100%;min-height:39px}
+  table.responsive-table[data-mobile-type="payments"] tbody td[data-label="Catatan"]{grid-column:1/-1}
+  table.responsive-table[data-mobile-type="reports"] tbody td[data-label="Bulan"]{grid-column:1/-1;font-size:13px;font-weight:850;color:var(--navy);border-bottom:1px solid #edf0f3!important;margin-bottom:4px;padding-bottom:9px}
+  .modal-card .responsive-table tbody{padding:2px 0}
+  .modal-card .responsive-table tbody tr{box-shadow:none}
+  .modal-card .panel .responsive-table-wrap{margin-top:10px!important}
+}
+@media(max-width:420px){
+  table.responsive-table tbody tr{padding:8px}
+  table.responsive-table tbody td{padding:6px 4px}
+  table.responsive-table tbody td[data-label="Aksi"] .row-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .table-head{gap:8px}.table-head h3{font-size:14px}.table-head .muted{font-size:9px;text-align:right}
+}
+@media(max-width:350px){
+  table.responsive-table tbody tr{grid-template-columns:1fr}
+  table.responsive-table tbody td{grid-column:1/-1!important}
+  table.responsive-table tbody td[data-label="Aksi"] .row-actions{grid-template-columns:1fr}
+}
+
 </style>
   <title>BizControl Online</title>
 </head>
@@ -166,7 +233,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">B</div>
-        <div><strong>BizControl</strong><span>ONLINE V1.7</span></div>
+        <div><strong>BizControl</strong><span>ONLINE V1.7.1</span></div>
       </div>
       <div class="business-box">
         <span>Bisnis aktif</span>
@@ -323,6 +390,38 @@ function renderSyncBadge(){
   el.className='sync-badge cloud';el.textContent=`● Cloud · ${role}${state.lastSync?' · '+new Date(state.lastSync).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'}):''}`;
 }
 function navigate(page){ state.page=page; render(); }
+
+function enhanceResponsiveTables(root=document){
+  if(!root?.querySelectorAll) return;
+  root.querySelectorAll('table:not(.doc-table)').forEach(table=>{
+    const headers=[...table.querySelectorAll('thead th')].map(th=>(th.textContent||'').trim());
+    if(!headers.length) return;
+    table.classList.add('responsive-table');
+    const wrap=table.closest('.table-wrap');
+    if(wrap) wrap.classList.add('responsive-table-wrap');
+    const lower=headers.map(x=>x.toLowerCase());
+    let type='generic';
+    if(lower.includes('invoice')&&lower.includes('customer')) type='sales';
+    else if(lower.includes('sku')&&lower.includes('nama')) type='products';
+    else if(lower.includes('kategori')&&lower.includes('deskripsi')&&lower.includes('nilai')) type='expenses';
+    else if(lower.includes('aktivitas')&&lower.includes('ringkasan')) type='audit';
+    else if(lower.includes('ke')&&lower.includes('metode')&&lower.includes('jumlah')) type='payments';
+    else if(lower.includes('bulan')&&lower.includes('omzet')) type='reports';
+    else if(lower.includes('user')&&lower.includes('role')) type='team';
+    table.dataset.mobileType=type;
+    table.querySelectorAll('tbody tr').forEach(row=>{
+      const cells=[...row.children].filter(el=>el.tagName==='TD');
+      if(cells.length===1&&Number(cells[0].colSpan||1)>1){ cells[0].classList.add('mobile-empty-cell'); return; }
+      cells.forEach((td,i)=>{
+        const label=headers[i]||'';
+        td.dataset.label=label;
+        td.dataset.mobileKey=label.toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');
+        if(label) td.setAttribute('aria-label',label);
+      });
+    });
+  });
+}
+
 function render(){
   renderNav(); renderBusinessSelect(); renderSyncBadge();
   const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['TRANSAKSI','Kasir / Penjualan'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan']};
@@ -332,6 +431,7 @@ function render(){
   $('#quickSaleBtn')?.classList.toggle('hidden',!can('sales_create'));
   $('#newBusinessBtn')?.classList.toggle('hidden',state.mode==='cloud'&&!state.session);
   bindPageActions();
+  enhanceResponsiveTables($('#pageContent'));
 }
 
 function metrics(){
@@ -521,7 +621,7 @@ function renderSettingsPage(){
     <div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Realtime bila Supabase Realtime aktif; polling aman tetap berjalan sebagai fallback.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><button class="soft-btn" data-action="cloud-settings">${c.url?'Ubah Konfigurasi':'Hubungkan Supabase'}</button></div></div>
     ${can('export')||state.mode==='local'?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">Format production: INV-YYYY-000001 · KWT-YYYY-000001 · SJ-YYYY-000001. Nomor Cloud dibuat atomik di database agar tidak duplikat antar perangkat.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.7 Production Foundations</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.7.1 Mobile Responsive</span></div></div>
   </div>`;
 }
 
@@ -586,6 +686,7 @@ function openModal(html){
   document.body.classList.add('modal-open');
   card.scrollTop=0;
   $$('.modal-close').forEach(b=>b.onclick=closeModal);
+  enhanceResponsiveTables(card);
   backdrop.onclick=e=>{ if(e.target===backdrop) closeModal(); };
   requestAnimationFrame(()=>{ const first=card.querySelector('input:not([type=hidden]),select,button'); first?.focus({preventScroll:true}); });
 }
@@ -1083,7 +1184,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.7',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.7.1',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),500);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),750)}
