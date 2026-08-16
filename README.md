@@ -191,3 +191,27 @@ See `TEAM_INVITATION_SETUP.md` and run `migration-v1.8.4-team-invitation.sql` be
 5. Test minimal: satu invoice 2–3 barang, edit qty, transaksi tempo, cicilan, hapus invoice dan pastikan stok kembali, Invoice, Kwitansi, Surat Jalan, serta Owner/Kasir dari dua perangkat.
 
 Migration ini mengubah model transaksi dan **wajib** dijalankan sebelum frontend V1.8.6 dipakai pada Cloud mode.
+
+## V1.8.7 Invite-Only Access & Password Control
+
+- Pendaftaran Owner publik dihapus dari UI. Halaman publik hanya menyediakan **Masuk**, **Lupa Password**, **Chat Admin untuk Daftar**, dan **Coba Demo Gratis**.
+- Demo mobile memiliki tombol **Masuk** langsung di topbar, jadi user tidak perlu masuk ke Pengaturan.
+- Owner baru diprovision oleh **Admin Sistem** melalui Edge Function `account-admin`; akun Auth biasa tidak dapat membuat bisnis sendiri.
+- Migration menambahkan `owner_accounts` dan meng-hardening RPC `create_business()` agar hanya Owner terkelola/existing Owner yang boleh membuat bisnis.
+- Semua user Cloud dapat mengganti password sendiri dari Pengaturan → **Akun & Password**.
+- Owner dapat mengirim link reset password untuk karyawan aktif dari **Tim & Role**.
+- Admin Sistem dapat mengundang Owner baru serta mengirim link reset password Owner dari menu **Admin Sistem**.
+- Hak Admin Sistem diverifikasi server-side melalui secret `BIZCONTROL_SYSTEM_ADMIN_EMAILS`; memunculkan menu secara paksa di DevTools tidak memberikan hak server.
+- Nomor WhatsApp pendaftaran dikelola di `runtime-config.js` melalui `supportWhatsApp` dan tidak dapat diedit dari UI customer.
+
+### Upgrade V1.8.6 → V1.8.7
+
+1. Backup database.
+2. Jalankan `migration-v1.8.7-invite-only-access.sql`.
+3. Buat/deploy Edge Function `account-admin` dari `account-admin-edge-function.ts`.
+4. Set Edge Function secrets `BIZCONTROL_SYSTEM_ADMIN_EMAILS` dan `BIZCONTROL_ALLOWED_REDIRECTS`.
+5. Di Supabase Auth, matikan **Allow new users to sign up** agar Auth project juga invite-only.
+6. Deploy frontend V1.8.7 dan hard refresh.
+7. Test: Demo mobile → Masuk, Chat Admin, undang Owner, login Owner pertama, ganti password sendiri, reset karyawan oleh Owner, reset Owner oleh Admin Sistem, lalu pastikan user biasa tidak dapat membuat bisnis melalui RPC.
+
+Lihat `V1.8.7_SETUP.md` untuk langkah deployment detail.

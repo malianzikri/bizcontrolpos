@@ -1,49 +1,62 @@
-# BizControl Online V1.8.6 — Final Deployment Notes
+# BizControl Online V1.8.7 — Final Deployment Notes
 
-## What changed
+## Perubahan utama dari V1.8.6
 
-1. Tombol **Keluar** dipindahkan dari Pengaturan ke topbar akun dan tetap bisa dijangkau pada mobile Cloud mode.
-2. Kasir sekarang menggunakan **keranjang multi-item**: satu invoice dapat berisi beberapa produk/jasa.
-3. Stok, HPP, laba kotor, dan total dihitung per item; pembayaran tetap satu invoice dan riwayat pembayaran/kwitansi tetap per pembayaran.
-4. Invoice dan Surat Jalan mencetak semua item. Surat Jalan tetap tanpa harga.
-5. Config Supabase tetap deployment-managed; Owner tidak memiliki UI untuk mengganti Project URL/Publishable Key.
-6. Demo tetap one-click local sandbox tanpa Supabase Auth.
+1. **Demo mobile sekarang punya tombol Masuk di topbar.** Tidak perlu membuka Pengaturan untuk kembali ke Cloud login.
+2. **Pendaftaran Owner publik dihapus.** Landing hanya: Masuk, Lupa Password, Chat Admin untuk Daftar, dan Coba Demo Gratis.
+3. **Owner provisioning sekarang server-authorized.** Migration menambah `owner_accounts`; user Auth biasa tidak dapat membuat bisnis hanya dengan memanggil RPC sendiri.
+4. **Admin Sistem** hanya muncul untuk akun yang emailnya terdaftar pada secret Edge Function `BIZCONTROL_SYSTEM_ADMIN_EMAILS`.
+5. Admin Sistem dapat **mengundang Owner baru** dan **mengirim reset password Owner**.
+6. Owner dapat **mengirim reset password karyawan aktif** dari Tim & Role.
+7. Semua user Cloud dapat **Ganti Password sendiri** dari Pengaturan → Akun & Password.
+8. Pada mobile Cloud ada tombol **Akun** di topbar agar Pengaturan/password selalu terjangkau.
+9. Kasir multi-item V1.8.6 tetap dipertahankan tanpa perubahan model transaksi.
 
-## Staging upgrade dari V1.8.5
+## Upgrade database
 
-**Database migration wajib**, karena V1.8.6 menambah tabel `sale_items` dan RPC transaksi multi-item.
+Jalankan setelah migration V1.8.6:
 
-1. Backup database staging.
-2. Jalankan `migration-v1.8.6-multi-item-cashier.sql` sekali di Supabase SQL Editor.
-3. Pastikan query selesai tanpa error sampai `COMMIT`.
-4. Deploy source V1.8.6 ke Vercel/GitHub.
-5. Copy deployment values yang sama ke `runtime-config.js`:
+`migration-v1.8.7-invite-only-access.sql`
 
-```js
-window.BIZCONTROL_CONFIG = {
-  supabaseUrl: 'https://YOUR_PROJECT.supabase.co',
-  publishableKey: 'sb_publishable_...',
-  turnstileSiteKey: ''
-};
-```
+Migration ini wajib untuk model invite-only yang aman karena memperketat `create_business()`.
 
-6. Edge Function `team-invite` tidak perlu diubah.
-7. Hard refresh/PWA update setelah deploy.
+## Edge Function baru
 
-## Existing data
+Deploy file:
 
-Migration melakukan backfill transaksi lama menjadi satu `sale_items` per invoice lama **sebelum trigger stok item diaktifkan**, sehingga stok existing tidak dipotong ulang.
+`account-admin-edge-function.ts`
 
-## Minimum staging test
+Nama function:
 
-- buat invoice 2–3 barang;
-- edit qty salah satu barang;
-- cek stok masing-masing produk;
-- transaksi cash dan tempo;
-- tambah cicilan dan lunasi;
-- cetak Invoice/Kwitansi/Surat Jalan;
-- hapus invoice dengan Security Key dan pastikan semua stok kembali;
-- test Owner di laptop + Kasir di HP;
-- test Logout dari topbar.
+`account-admin`
 
-Never place a Supabase secret/service-role key in frontend files. Publishable key memang browser-visible; authorization tetap harus ditegakkan oleh RLS/RPC.
+Set secrets:
+- `BIZCONTROL_SYSTEM_ADMIN_EMAILS` = email Admin BizControl, bisa beberapa dipisah koma.
+- `BIZCONTROL_ALLOWED_REDIRECTS` = origin localhost/staging/production yang boleh dipakai invite dan reset password.
+
+`team-invite` lama tetap digunakan untuk undangan karyawan.
+
+## Supabase Auth
+
+Setelah V1.8.7 aktif, nonaktifkan **Allow new users to sign up** pada Auth General Configuration. Owner baru dibuat dari Admin Sistem, sedangkan karyawan dibuat dari Tim & Role.
+
+## Vercel frontend
+
+Deploy seluruh folder source ke repository yang sama. `runtime-config.js` tetap menggunakan Project URL dan Publishable Key yang sama, dengan tambahan `supportWhatsApp` untuk tombol Chat Admin.
+
+Setelah deploy lakukan hard refresh dan bila PWA pernah di-install, tutup/buka ulang aplikasi agar service worker V1.8.7 mengambil cache baru.
+
+## Minimum production smoke test
+
+- HP Demo → tombol Masuk terlihat dan membuka login.
+- Landing tidak memiliki pendaftaran Owner langsung.
+- Chat Admin bekerja.
+- Admin Sistem muncul hanya pada akun yang diizinkan.
+- Invite Owner → email → set password → login → `Bisnis Saya` dibuat.
+- User Auth non-Owner gagal memanggil `create_business()`.
+- Ganti password sendiri dari akun Owner/Kasir/Gudang.
+- Owner mengirim reset password Kasir.
+- Admin Sistem mengirim reset password Owner.
+- Kasir multi-item tetap dapat membuat satu invoice berisi beberapa barang.
+
+Never place Supabase service-role/secret key in frontend files.
