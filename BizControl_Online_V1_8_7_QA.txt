@@ -1,0 +1,41 @@
+PASS | public signup tab removed
+PASS | public signup endpoint removed
+PASS | chat admin CTA exists
+PASS | demo mobile login button exists
+PASS | demo mobile login forced visible CSS
+PASS | cloud account button available mobile
+PASS | support WhatsApp deployment config
+PASS | self change password UI
+PASS | self password update endpoint
+PASS | member reset button
+PASS | owner reset member edge action
+PASS | system admin owner reset UI
+PASS | recovery link flow retained
+PASS | system admin nav server-gated state
+PASS | system admin status from edge function
+PASS | system admin owner invite
+PASS | owner_accounts table
+PASS | owner_accounts direct browser access revoked
+PASS | existing owners backfilled
+PASS | can_create_business RPC
+PASS | create_business hardened
+PASS | frontend trusts server can_create_business
+PASS | old user_metadata owner bootstrap removed
+PASS | account admin verifies bearer user
+PASS | system admin allowlist secret
+PASS | allowed redirect secret
+PASS | invite owner uses admin API
+PASS | owner reset uses recovery API
+PASS | member reset verifies business owner
+PASS | member reset verifies membership
+PASS | member reset audited as SECURITY
+PASS | no service role in runtime config
+PASS | app version export 1.8.7
+PASS | service worker cache bumped
+PASS | fresh schema v1.8.7 exists
+PASS | app.js syntax
+
+RESULT 36/36 PASS
+PASS | account-admin Edge Function TypeScript syntax
+
+FINAL: 37/37 static/syntax checks PASS
