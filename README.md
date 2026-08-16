@@ -169,3 +169,25 @@ See `TEAM_INVITATION_SETUP.md` and run `migration-v1.8.4-team-invitation.sql` be
 - Demo includes a visible `Masuk / Daftar` path back to Cloud accounts and a one-click Reset Data Demo.
 - Logout returns to the account landing page.
 - Publishable keys remain visible to browser developer tools by design; authorization continues to be enforced by RLS/RPC. Never place a service-role/secret key in runtime config.
+
+
+## V1.8.6 Multi-Item Cashier
+
+- Tombol **Keluar** dipindahkan dari Pengaturan ke topbar akun agar lebih cepat dijangkau, termasuk di mobile Cloud mode.
+- Satu transaksi Kasir sekarang merupakan satu **invoice dengan keranjang multi-item**. User dapat menambahkan beberapa produk/jasa, mengubah qty, dan menghapus baris sebelum menyimpan.
+- Diskon tetap berada di level invoice. Pembayaran, riwayat cicilan, kwitansi, dan status Lunas/Belum Lunas tetap berada pada satu invoice.
+- Invoice dan Surat Jalan mencetak seluruh item pada transaksi; Surat Jalan tetap tidak menampilkan harga.
+- Cloud menambahkan tabel `sale_items` dan RPC multi-item. Stok diproses per item dengan row locking dan validasi stok.
+- Existing invoice satu-barang otomatis di-backfill menjadi satu `sale_items` ketika migration dijalankan; stok lama tidak dikurangi ulang.
+- Backup JSON sekarang menyertakan `saleItems`; Export Semua CSV juga mengekspor detail item penjualan.
+- Role masking tetap berlaku: Kasir/Gudang tidak memperoleh HPP item dari RPC list item.
+
+### Upgrade staging V1.8.5 → V1.8.6
+
+1. Backup database staging terlebih dahulu.
+2. Jalankan `migration-v1.8.6-multi-item-cashier.sql` sekali di Supabase SQL Editor.
+3. Deploy frontend V1.8.6 ke Vercel/GitHub. `runtime-config.js` tetap memakai Project URL + Publishable Key yang sama.
+4. Edge Function `team-invite` tidak perlu diubah.
+5. Test minimal: satu invoice 2–3 barang, edit qty, transaksi tempo, cicilan, hapus invoice dan pastikan stok kembali, Invoice, Kwitansi, Surat Jalan, serta Owner/Kasir dari dua perangkat.
+
+Migration ini mengubah model transaksi dan **wajib** dijalankan sebelum frontend V1.8.6 dipakai pada Cloud mode.
