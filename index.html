@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#143c35" />
-  <meta name="description" content="BizControl Online - business control UMKM dengan role, audit, dokumen, dan cloud sync." />
+  <meta name="description" content="BizControl Online V1.8.1 Production Patch - business control UMKM dengan role, audit, dokumen, recovery password, dan cloud sync." />
   <style>
 :root{
   --navy:#17324d;--navy2:#0f263a;--green:#1f7a5a;--green2:#143c35;--mint:#eaf3f0;
@@ -206,28 +206,36 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
 .demo-security-warning{display:flex;gap:10px;align-items:flex-start;margin-bottom:14px;padding:12px 14px;border:1px solid #f2c94c;background:#fff8df;border-radius:12px;color:#7a5a00}.demo-security-warning b{white-space:nowrap}.demo-security-warning span{line-height:1.45}.checkbox-setting{display:flex!important;flex-direction:row!important;align-items:flex-start!important;gap:10px;padding:12px;border:1px solid #dfe6e3;border-radius:12px;background:#f8faf9}.checkbox-setting input{width:18px!important;height:18px!important;margin-top:2px}.checkbox-setting span{display:flex;flex-direction:column;gap:3px}.checkbox-setting small{color:#667085;font-weight:400;line-height:1.35}.turnstile-box{min-height:66px;display:flex;justify-content:center;align-items:center}.turnstile-box.hidden{display:none}
 @media(max-width:760px){.demo-security-warning{flex-direction:column;gap:4px}.demo-security-warning b{white-space:normal}}
 
+/* V1.8.1 — Auth recovery / production patch */
+.auth-link{display:block;margin:10px auto 12px;border:0;background:transparent;color:var(--green);font-weight:800;padding:7px 10px;text-decoration:none}
+.auth-link:hover{text-decoration:underline}
+.auth-card #authBackLogin{margin-bottom:10px}
+.auth-card .auth-security-note{background:#f8faf9;border:1px solid var(--border);border-radius:10px;padding:9px 11px;font-size:10px;line-height:1.45;color:var(--muted)}
+
 </style>
-  <title>BizControl Online V1.8 Security Hardened — Demo</title>
+  <title>BizControl Online V1.8.1 Production Patch — Demo</title>
 </head>
 <body>
-  <!-- DEMO ONLY: single-file build; do not use local mode for sensitive production data. -->
   <div id="toast" class="toast"></div>
 
   <section id="authView" class="auth-shell hidden">
     <div class="auth-card">
       <div class="brand-mark">B</div>
       <h1>BizControl Online</h1>
-      <p class="muted">Masuk untuk menyinkronkan data bisnis antar perangkat.</p>
-      <div class="segmented">
+      <p class="muted" id="authSubtitle">Masuk untuk menyinkronkan data bisnis antar perangkat.</p>
+      <div class="segmented" id="authTabs">
         <button id="authLoginTab" class="segment active">Masuk</button>
         <button id="authSignupTab" class="segment">Daftar</button>
       </div>
       <form id="authForm" class="form-grid single">
-        <label>Email<input id="authEmail" type="email" required placeholder="nama@email.com" /></label>
-        <label>Password<input id="authPassword" type="password" required minlength="8" placeholder="Minimal 8 karakter" /></label>
+        <label id="authEmailLabel">Email<input id="authEmail" type="email" required placeholder="nama@email.com" /></label>
+        <label id="authPasswordLabel"><span id="authPasswordLabelText">Password</span><input id="authPassword" type="password" required minlength="8" placeholder="Minimal 8 karakter" autocomplete="current-password" /></label>
+        <label id="authPasswordConfirmLabel" class="hidden">Ulangi Password<input id="authPasswordConfirm" type="password" minlength="8" placeholder="Ulangi password baru" autocomplete="new-password" /></label>
         <div id="turnstileBox" class="turnstile-box hidden"></div>
         <button class="primary full" type="submit" id="authSubmit">Masuk</button>
       </form>
+      <button id="forgotPasswordBtn" class="auth-link" type="button">Lupa password?</button>
+      <button id="authBackLogin" class="ghost full hidden" type="button">Kembali ke Login</button>
       <button id="backToDemo" class="ghost full">Kembali ke Mode Demo</button>
       <p class="micro">Mode cloud membutuhkan URL project dan Publishable/Anon Key Supabase pada Pengaturan.</p>
     </div>
@@ -237,7 +245,7 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <aside class="sidebar">
       <div class="brand">
         <div class="brand-mark">B</div>
-        <div><strong>BizControl</strong><span>ONLINE V1.8</span></div>
+        <div><strong>BizControl</strong><span>ONLINE V1.8.1</span></div>
       </div>
       <div class="business-box">
         <span>Bisnis aktif</span>
@@ -273,6 +281,17 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
     <div id="modalCard" class="modal-card"></div>
   </div>
 
+  <script>
+// BizControl Online runtime config (V1.8.1)
+// For production deployment, fill these values once on the server/deployment.
+// NEVER place a Supabase service_role/secret key in this file.
+window.BIZCONTROL_CONFIG = window.BIZCONTROL_CONFIG || {
+  supabaseUrl: '',
+  publishableKey: '',
+  turnstileSiteKey: ''
+};
+
+</script>
   <script>
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => [...document.querySelectorAll(s)];
@@ -636,7 +655,7 @@ function renderSettingsPage(){
     <div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Sinkronisasi aman menggunakan polling ±8 detik. API response tidak disimpan oleh Service Worker.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><button class="soft-btn" data-action="cloud-settings">${c.url?'Ubah Konfigurasi':'Hubungkan Supabase'}</button></div></div>
     ${can('export')||state.mode==='local'?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8 Security Hardened</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.1 Production Patch</span></div></div>
   </div>`;
 }
 
@@ -1163,7 +1182,13 @@ async function removeMember(userId,email){if(currentRole()!=='owner')return toas
 async function logoutCloud(){try{stopPolling();clearSession();state.mode='local';state.currentRole='owner';hideAuth();render();toast('Berhasil keluar','success')}catch(e){toast(e.message,'error')}}
 
 // -------- Cloud / Supabase REST --------
-function loadCloudConfig(){ try{return JSON.parse(localStorage.getItem('bc_cloud_config')||'null')}catch{return null} }
+function loadCloudConfig(){
+  let stored=null;try{stored=JSON.parse(localStorage.getItem('bc_cloud_config')||'null')}catch{}
+  const r=window.BIZCONTROL_CONFIG||{};
+  const runtimeUrl=String(r.supabaseUrl||'').trim();const runtimeKey=String(r.publishableKey||'').trim();
+  if(runtimeUrl&&runtimeKey)return {url:runtimeUrl,key:runtimeKey,turnstileSiteKey:String(r.turnstileSiteKey||'').trim(),managed:true};
+  return stored;
+}
 function loadSession(){ try{let raw=sessionStorage.getItem('bc_session');if(!raw){const legacy=localStorage.getItem('bc_session');if(legacy){sessionStorage.setItem('bc_session',legacy);localStorage.removeItem('bc_session');raw=legacy;}}return JSON.parse(raw||'null')}catch{return null} }
 function saveSession(s){ sessionStorage.setItem('bc_session',JSON.stringify(s)); localStorage.removeItem('bc_session'); state.session=s; }
 function clearSession(){sessionStorage.removeItem('bc_session');localStorage.removeItem('bc_session');state.session=null;}
@@ -1184,7 +1209,7 @@ async function cloudRequest(path,{method='GET',body=null,prefer=false,retry=true
 }
 async function ensureTurnstile(){
   const key=(state.cloudConfig||loadCloudConfig())?.turnstileSiteKey; const box=$('#turnstileBox');
-  if(!box) return; if(!key){box.classList.add('hidden');box.innerHTML='';turnstileWidgetId=null;return;}
+  if(!box) return; if(authMode==='reset'){box.classList.add('hidden');box.innerHTML='';turnstileWidgetId=null;return;} if(!key){box.classList.add('hidden');box.innerHTML='';turnstileWidgetId=null;return;}
   box.classList.remove('hidden');
   if(!window.turnstile){
     await new Promise((resolve,reject)=>{const existing=document.querySelector('script[data-bc-turnstile]');if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',reject,{once:true});return;}const sc=document.createElement('script');sc.src='https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';sc.async=true;sc.defer=true;sc.dataset.bcTurnstile='1';sc.onload=resolve;sc.onerror=()=>reject(new Error('CAPTCHA gagal dimuat'));document.head.appendChild(sc);});
@@ -1203,6 +1228,62 @@ async function authSubmit(email,password,mode){
   resetCaptcha();
   if(!res.ok){if(res.status===429)throw new Error('Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.');throw new Error(data.msg||data.error_description||data.message||'Autentikasi gagal');}
   if(mode==='signup'&&!data.access_token){toast('Akun dibuat. Cek email jika konfirmasi diaktifkan.');return null;} saveSession(data); return data;
+}
+
+function recoveryRedirectUrl(){
+  if(!/^https?:$/.test(location.protocol))throw new Error('Reset password hanya tersedia pada deployment HTTPS/HTTP, bukan file lokal.');
+  return location.origin+location.pathname;
+}
+async function sendPasswordRecovery(email){
+  const c=state.cloudConfig||loadCloudConfig();if(!c?.url||!c?.key)throw new Error('Konfigurasi Supabase belum tersedia');
+  email=String(email||'').trim();if(!email||!email.includes('@'))throw new Error('Masukkan email yang valid');
+  const token=captchaToken();const payload={email};if(token)payload.gotrue_meta_security={captcha_token:token};
+  const redirectTo=recoveryRedirectUrl();
+  const res=await fetch(c.url+'/auth/v1/recover?redirect_to='+encodeURIComponent(redirectTo),{method:'POST',headers:{apikey:c.key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  let data={};try{data=await res.json()}catch{}
+  resetCaptcha();
+  if(!res.ok){if(res.status===429)throw new Error('Permintaan reset terlalu sering. Tunggu sebentar lalu coba lagi.');throw new Error(data.msg||data.error_description||data.message||'Gagal mengirim email reset password');}
+  // Deliberately generic: do not reveal whether the email is registered.
+  toast('Jika email terdaftar, link reset password akan dikirim.','success',5000);
+  return true;
+}
+async function loadRecoverySessionFromUrl(){
+  const hash=new URLSearchParams((location.hash||'').replace(/^#/,''));
+  if(hash.get('error_description')){toast(decodeURIComponent(hash.get('error_description')),'error',6000);history.replaceState({},document.title,location.pathname+location.search);return false;}
+  if(hash.get('type')!=='recovery'||!hash.get('access_token'))return false;
+  const c=state.cloudConfig||loadCloudConfig();if(!c?.url||!c?.key){showAuth();setAuthMode('login');toast('Link recovery valid, tetapi konfigurasi Cloud belum tersedia pada deployment ini.','error',7000);return true;}
+  const accessToken=hash.get('access_token');const refreshToken=hash.get('refresh_token')||'';
+  const userRes=await fetch(c.url+'/auth/v1/user',{headers:{apikey:c.key,Authorization:'Bearer '+accessToken}});
+  let user={};try{user=await userRes.json()}catch{}
+  if(!userRes.ok)throw new Error(user?.message||'Link reset password tidak valid atau sudah kedaluwarsa');
+  saveSession({access_token:accessToken,refresh_token:refreshToken,token_type:hash.get('token_type')||'bearer',expires_in:Number(hash.get('expires_in')||3600),user});
+  state.cloudConfig=c;state.mode='cloud';setAuthMode('reset');showAuth();return true;
+}
+async function updateRecoveredPassword(password){
+  const c=state.cloudConfig||loadCloudConfig();const token=state.session?.access_token;
+  if(!c?.url||!c?.key||!token)throw new Error('Sesi reset password tidak tersedia');
+  if(String(password||'').length<8)throw new Error('Password baru minimal 8 karakter');
+  const res=await fetch(c.url+'/auth/v1/user',{method:'PUT',headers:{apikey:c.key,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({password})});
+  let data={};try{data=await res.json()}catch{}
+  if(!res.ok)throw new Error(data.msg||data.error_description||data.message||'Gagal mengubah password');
+  // End the recovery session and require a normal sign-in with the new password.
+  try{await fetch(c.url+'/auth/v1/logout',{method:'POST',headers:{apikey:c.key,Authorization:'Bearer '+token}})}catch{}
+  clearSession();history.replaceState({},document.title,location.pathname+location.search);setAuthMode('login');showAuth();toast('Password berhasil diubah. Silakan login dengan password baru.','success',6000);return true;
+}
+function setAuthMode(mode){
+  authMode=mode;const tabs=$('#authTabs'),emailLabel=$('#authEmailLabel'),passwordLabel=$('#authPasswordLabel'),confirmLabel=$('#authPasswordConfirmLabel');
+  const email=$('#authEmail'),password=$('#authPassword'),confirm=$('#authPasswordConfirm'),forgot=$('#forgotPasswordBtn'),back=$('#authBackLogin'),subtitle=$('#authSubtitle');
+  $('#authLoginTab').classList.toggle('active',mode==='login');$('#authSignupTab').classList.toggle('active',mode==='signup');
+  tabs.classList.toggle('hidden',mode==='recover'||mode==='reset');
+  emailLabel.classList.toggle('hidden',mode==='reset');passwordLabel.classList.toggle('hidden',mode==='recover');confirmLabel.classList.toggle('hidden',mode!=='reset');
+  email.disabled=mode==='reset';email.required=mode!=='reset';password.disabled=mode==='recover';password.required=mode!=='recover';confirm.disabled=mode!=='reset';confirm.required=mode==='reset';
+  password.autocomplete=mode==='reset'?'new-password':'current-password';
+  forgot.classList.toggle('hidden',mode!=='login');back.classList.toggle('hidden',mode==='login'||mode==='signup'||mode==='reset');
+  $('#authPasswordLabelText').textContent=mode==='reset'?'Password Baru':'Password';
+  $('#authSubmit').textContent=mode==='login'?'Masuk':mode==='signup'?'Daftar':mode==='recover'?'Kirim Link Reset':'Simpan Password Baru';
+  subtitle.textContent=mode==='recover'?'Masukkan email akun. Demi keamanan, sistem tidak akan memberi tahu apakah email terdaftar.':mode==='reset'?'Buat password baru minimal 8 karakter. Setelah berhasil, Anda akan diminta login kembali.':'Masuk untuk menyinkronkan data bisnis antar perangkat.';
+  if(mode!=='reset')confirm.value='';
+  ensureTurnstile().catch(()=>{});
 }
 async function cloudBootstrap(){
   try{
@@ -1242,7 +1323,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.8',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.1',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),500);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),750)}
@@ -1259,18 +1340,29 @@ $('#newBusinessBtn').onclick=openBusinessModal;
 $('#syncNowBtn').onclick=async()=>{if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();render();toast('Data tersinkron','success')}catch(e){toast(e.message,'error')}}else toast('Mode demo tersimpan di perangkat ini')};
 $('#modalBackdrop').classList.add('hidden');
 
-$('#authLoginTab').onclick=()=>{authMode='login';$('#authLoginTab').classList.add('active');$('#authSignupTab').classList.remove('active');$('#authSubmit').textContent='Masuk'};
-$('#authSignupTab').onclick=()=>{authMode='signup';$('#authSignupTab').classList.add('active');$('#authLoginTab').classList.remove('active');$('#authSubmit').textContent='Daftar'};
-$('#authForm').onsubmit=async e=>{e.preventDefault();try{const s=await authSubmit($('#authEmail').value,$('#authPassword').value,authMode);if(s) await cloudBootstrap();}catch(err){toast(err.message)}};
-$('#backToDemo').onclick=()=>{state.mode='local';clearSession();hideAuth();stopPolling();render();};
+$('#authLoginTab').onclick=()=>setAuthMode('login');
+$('#authSignupTab').onclick=()=>setAuthMode('signup');
+$('#forgotPasswordBtn').onclick=()=>setAuthMode('recover');
+$('#authBackLogin').onclick=()=>setAuthMode('login');
+$('#authForm').onsubmit=async e=>{e.preventDefault();try{
+  if(authMode==='recover'){await sendPasswordRecovery($('#authEmail').value);setAuthMode('login');return;}
+  if(authMode==='reset'){
+    const p=$('#authPassword').value,c=$('#authPasswordConfirm').value;if(p!==c)throw new Error('Ulangi password harus sama');await updateRecoveredPassword(p);return;
+  }
+  const session=await authSubmit($('#authEmail').value,$('#authPassword').value,authMode);if(session)await cloudBootstrap();
+}catch(err){toast(err.message,'error')}};
+$('#backToDemo').onclick=()=>{state.mode='local';clearSession();setAuthMode('login');hideAuth();stopPolling();render();};
 
 window.addEventListener('online',async()=>{toast('Koneksi kembali. Menyinkronkan...','success');if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();startPolling();render()}catch(e){toast(e.message,'error')}}});
 window.addEventListener('offline',()=>{setSyncState('offline');toast('Internet terputus. Jangan tutup form yang belum tersimpan.','error',5000)});
 document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&state.mode==='cloud'&&isOnline()){try{await cloudLoadBusinesses();await cloudLoadBusinessData();render()}catch(e){console.warn(e)}}});
 
 // -------- Boot --------
-state.cloudConfig=loadCloudConfig(); state.session=loadSession();
-if(state.cloudConfig&&state.session){state.mode='cloud';cloudBootstrap();} else {state.mode='local';hideAuth();render();}
+(async()=>{
+  state.cloudConfig=loadCloudConfig();state.session=loadSession();setAuthMode('login');
+  try{if(await loadRecoverySessionFromUrl())return;}catch(err){clearSession();setAuthMode('login');showAuth();toast(err.message,'error',7000);return;}
+  if(state.cloudConfig&&state.session){state.mode='cloud';cloudBootstrap();}else{state.mode='local';hideAuth();render();}
+})();
 if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('./sw.js').catch(()=>{});
 
 </script>
