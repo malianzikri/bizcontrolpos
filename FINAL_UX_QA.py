@@ -1,0 +1,26 @@
+from pathlib import Path
+import re, subprocess, json, sys
+b=Path(__file__).parent
+app=(b/'app.js').read_text(); idx=(b/'index.html').read_text(); css=(b/'styles.css').read_text(); sw=(b/'sw.js').read_text(); rc=(b/'runtime-config.js').read_text()
+checks=[]
+def ck(n,c): checks.append((n,bool(c)))
+ck('JS syntax', subprocess.run(['node','--check',str(b/'app.js')],capture_output=True).returncode==0)
+ck('No openCloudSettings function', 'function openCloudSettings' not in app)
+ck('No cloud-settings action', "cloud-settings" not in app)
+ck('No editable Project URL in app UI', 'Project URL<input' not in app and 'Publishable / Anon Key<input' not in app)
+ck('Runtime-only loadCloudConfig', 'localStorage.getItem(\'bc_cloud_config\')' not in app and 'window.BIZCONTROL_CONFIG' in app)
+ck('Legacy config removed on boot', "localStorage.removeItem('bc_cloud_config')" in app)
+ck('Landing has Masuk/Daftar', 'authLoginTab' in idx and 'authSignupTab' in idx)
+ck('Landing has one-click demo', 'Coba Demo Gratis' in idx and "enterDemoSandbox" in app)
+ck('No-session boot shows auth', "else {state.mode='local';setAuthMode('login');showAuth();}" in app)
+ck('Demo sidebar can return to auth', 'openAuthBtn' in idx and "$('#openAuthBtn').onclick=()=>openCloudAuth();" in app)
+ck('Demo settings can return to auth', 'data-action="open-auth"' in app)
+ck('Demo reset exists', 'data-action="reset-demo"' in app)
+ck('Logout goes to auth landing', "setAuthMode('login');showAuth();toast('Berhasil keluar'" in app)
+ck('Cloud config shown as managed only', 'DIKELOLA SISTEM' in app and 'tidak dapat diubah dari akun Owner' in app)
+ck('Service worker cache bumped', 'bizcontrol-v1-8-5-production-final' in sw)
+ck('Version visible', 'ONLINE V1.8.5' in idx and 'V1.8.5 Production Final' in app)
+ck('No service role in runtime config', 'service_role' in rc.lower() and "publishableKey" in rc)
+for n,v in checks: print(('PASS' if v else 'FAIL'),n)
+print(f'{sum(v for _,v in checks)}/{len(checks)} PASS')
+sys.exit(0 if all(v for _,v in checks) else 1)
