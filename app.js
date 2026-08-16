@@ -15,6 +15,7 @@ const NAV = [
   {id:'team',label:'Tim & Role',mobileLabel:'Tim',icon:'♙'},
   {id:'audit',label:'Audit Log',mobileLabel:'Audit',icon:'≣'},
   {id:'settings',label:'Pengaturan',icon:'⚙'},
+  {id:'systemAdmin',label:'Admin Sistem',mobileLabel:'Admin',icon:'◆'},
 ];
 
 
@@ -27,7 +28,7 @@ const ROLE_PERMISSIONS={
   warehouse:['dashboard_stock','sales_view','products_view','products_stock_edit','print','sync'],
   staff:['dashboard_basic','products_view','sync']
 };
-const NAV_PERMISSION={dashboard:null,sales:'sales_view',products:'products_view',expenses:'expenses_view',reports:'reports',team:'team_view',audit:'audit',settings:null};
+const NAV_PERMISSION={dashboard:null,sales:'sales_view',products:'products_view',expenses:'expenses_view',reports:'reports',team:'team_view',audit:'audit',settings:null,systemAdmin:null};
 function currentRole(){return state.mode==='local'?(state.demoRole||'owner'):(state.currentRole||'staff')}
 function can(permission){if(!permission)return true;const perms=ROLE_PERMISSIONS[currentRole()]||[];return perms.includes('*')||perms.includes(permission)}
 function requirePermission(permission,message='Anda tidak memiliki akses untuk tindakan ini.'){if(!can(permission)){toast(message,'error');return false}return true}
@@ -67,12 +68,13 @@ const defaultState = () => ({
     {id:'e2',business_id:'demo-business',date:new Date(Date.now()-86400000).toISOString().slice(0,10),category:'Transport',description:'Pengiriman lokal',amount:40000,payment_method:'Cash'},
   ],
   auditLogs:[], memberships:[], teamMembers:[], currentRole:'owner', demoRole:'owner', documentSequences:{}, syncStatus:'idle', syncError:null,
-  session:null, cloudConfig:null, lastSync:null
+  session:null, cloudConfig:null, lastSync:null, isSystemAdmin:false, managedOwners:[]
 });
 
 let state = loadLocal();
 let authMode = 'login';
 let authLinkType = null;
+let authInviteKind = null;
 let pollTimer = null;
 
 function loadLocal(){
@@ -122,10 +124,10 @@ function saleItemsLabel(sale){
 function saleItemsQty(sale){ const rows=itemsForSale(sale.id); return rows.length?rows.reduce((a,x)=>a+Number(x.qty||0),0):Number(sale.qty||0); }
 
 function renderNav(){
-  const visible=NAV.filter(n=>can(NAV_PERMISSION[n.id]));
-  if(!visible.some(n=>n.id===state.page)) state.page='dashboard';
+  const visible=NAV.filter(n=>n.id==='systemAdmin'?(state.mode==='cloud'&&state.isSystemAdmin):can(NAV_PERMISSION[n.id]));
+  if(!visible.some(n=>n.id===state.page)) state.page=state.isSystemAdmin&&!state.businesses.length?'systemAdmin':'dashboard';
   $('#desktopNav').innerHTML = visible.map(n=>`<button class="nav-item ${state.page===n.id?'active':''}" data-nav="${n.id}"><span class="nav-icon">${n.icon}</span>${n.label}</button>`).join('');
-  const preferred=['dashboard','sales','products','expenses','reports','team','audit'];
+  const preferred=state.isSystemAdmin?['dashboard','sales','products','team','settings','systemAdmin']:['dashboard','sales','products','expenses','reports','team','audit'];
   const mobile=visible.filter(n=>preferred.includes(n.id)).slice(0,6);
   $('#mobileNav').style.setProperty('--mobile-count',Math.max(mobile.length,1));
   $('#mobileNav').innerHTML = mobile.map(n=>`<button class="${state.page===n.id?'active':''}" data-nav="${n.id}"><b>${n.icon}</b>${n.mobileLabel||n.label}</button>`).join('');
@@ -180,14 +182,16 @@ function enhanceResponsiveTables(root=document){
 
 function render(){
   renderNav(); renderBusinessSelect(); renderSyncBadge();
-  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['TRANSAKSI','Kasir / Penjualan'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan']};
-  $('#pageEyebrow').textContent=meta[state.page][0]; $('#pageTitle').textContent=meta[state.page][1];
-  const pages={dashboard:renderDashboard,sales:renderSales,products:renderProducts,expenses:renderExpenses,reports:renderReports,team:renderTeam,audit:renderAuditLog,settings:renderSettingsPage};
+  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['TRANSAKSI','Kasir / Penjualan'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan'],systemAdmin:['PLATFORM CONTROL','Admin Sistem']};
+  const activeMeta=meta[state.page]||meta.dashboard; $('#pageEyebrow').textContent=activeMeta[0]; $('#pageTitle').textContent=activeMeta[1];
+  const pages={dashboard:renderDashboard,sales:renderSales,products:renderProducts,expenses:renderExpenses,reports:renderReports,team:renderTeam,audit:renderAuditLog,settings:renderSettingsPage,systemAdmin:renderSystemAdmin};
   $('#pageContent').innerHTML=pages[state.page]();
   $('#quickSaleBtn')?.classList.toggle('hidden',!can('sales_create'));
-  $('#newBusinessBtn')?.classList.toggle('hidden',state.mode==='cloud'&&!state.session);
+  $('#newBusinessBtn')?.classList.toggle('hidden',state.mode==='cloud'&&currentRole()!=='owner');
   $('#openAuthBtn')?.classList.toggle('hidden',state.mode==='cloud');
   $('#logoutBtn')?.classList.toggle('hidden',state.mode!=='cloud');
+  $('#demoLoginBtn')?.classList.toggle('hidden',state.mode!=='local');
+  $('#accountSettingsBtn')?.classList.toggle('hidden',state.mode!=='cloud');
   bindPageActions();
   enhanceResponsiveTables($('#pageContent'));
 }
@@ -376,7 +380,7 @@ function renderTeam(){
   const memberRows=rows.map(m=>{
     const pending=m.status==='pending';
     const statusHtml=pending?'<span class="pill warn">Menunggu Undangan</span>':'<span class="pill good">Aktif</span>';
-    const actionHtml=owner?`<div class="row-actions"><button class="row-action edit" data-action="edit-member" data-id="${m.user_id}" data-role="${m.role}" data-email="${escapeAttr(m.email||'')}">Ubah Role</button><button class="row-action delete" data-action="remove-member" data-id="${m.user_id}" data-email="${escapeAttr(m.email||'')}">${pending?'Batalkan':'Hapus / Cabut Akses'}</button></div>`:'—';
+    const actionHtml=owner?`<div class="row-actions"><button class="row-action edit" data-action="edit-member" data-id="${m.user_id}" data-role="${m.role}" data-email="${escapeAttr(m.email||'')}">Ubah Role</button>${pending?'':`<button class="row-action" data-action="reset-member-password" data-id="${m.user_id}" data-email="${escapeAttr(m.email||'')}">Reset Password</button>`}<button class="row-action delete" data-action="remove-member" data-id="${m.user_id}" data-email="${escapeAttr(m.email||'')}">${pending?'Batalkan':'Hapus / Cabut Akses'}</button></div>`:'—';
     return `<tr><td>${escapeHtml(m.email||m.user_id||'-')}</td><td><span class="role-chip role-${escapeAttr(m.role)}">${escapeHtml(ROLE_LABELS[m.role]||m.role)}</span></td><td>${statusHtml}</td><td>${actionHtml}</td></tr>`;
   }).join('');
   return `<div class="role-guide"><div><b>Owner</b><span>Semua akses & security</span></div><div><b>Admin</b><span>Operasional penuh</span></div><div><b>Kasir</b><span>Kasir & pembayaran</span></div><div><b>Finance</b><span>Biaya & laporan</span></div><div><b>Gudang</b><span>Produk & stok</span></div></div>
@@ -388,17 +392,29 @@ function renderTeam(){
 function renderSettingsPage(){
   const canEdit=can('business_edit');
   return `<div class="panel">
-    <div class="setting-block"><div class="status-row"><div><h3>Akun & Role</h3><div class="muted">${state.mode==='cloud'?escapeHtml(state.session?.user?.email||'User cloud'):'Mode Demo — tanpa login'}</div></div>${roleBadge()}</div>${state.mode==='local'?'<button class="soft-btn" data-action="open-auth">Masuk / Buat Akun</button>':''}</div>
-    ${state.mode==='local'?`<div class="demo-security-warning"><b>MODE DEMO</b><span>Sandbox simulasi tanpa login. Data hanya tersimpan di browser dan tidak masuk ke database cloud. Jangan masukkan data bisnis/customer asli.</span></div><div class="setting-block"><h3>Kontrol Demo</h3><p class="muted">Kembalikan semua data simulasi ke kondisi awal kapan saja.</p><div class="toolbar-left"><button class="ghost" data-action="reset-demo">Reset Data Demo</button><button class="primary" data-action="open-auth">Buat Akun Gratis / Masuk</button></div></div><div class="setting-block"><h3>Preview Role Demo</h3><p class="muted">Uji tampilan dan menu untuk role berbeda.</p><div class="segmented role-preview">${Object.keys(ROLE_LABELS).map(r=>`<button class="segment ${currentRole()===r?'active':''}" data-action="preview-role" data-role="${r}">${ROLE_LABELS[r]}</button>`).join('')}</div></div>`:''}
+    <div class="setting-block"><div class="status-row"><div><h3>Akun & Role</h3><div class="muted">${state.mode==='cloud'?escapeHtml(state.session?.user?.email||'User cloud'):'Mode Demo — tanpa login'}</div></div>${roleBadge()}</div>${state.mode==='local'?'<div class="toolbar-left"><button class="soft-btn" data-action="open-auth">Masuk ke Cloud</button><button class="ghost" data-action="contact-admin">Daftar — Chat Admin</button></div>':''}</div>
+    ${state.mode==='cloud'?`<div class="setting-block"><h3>Akun & Password</h3><p class="muted">Ganti password akun Anda sendiri kapan saja.</p><button class="soft-btn" data-action="change-password">Ganti Password</button></div>`:''}
+    ${state.mode==='local'?`<div class="demo-security-warning"><b>MODE DEMO</b><span>Sandbox simulasi tanpa login. Data hanya tersimpan di browser dan tidak masuk ke database cloud. Jangan masukkan data bisnis/customer asli.</span></div><div class="setting-block"><h3>Kontrol Demo</h3><p class="muted">Kembalikan semua data simulasi ke kondisi awal kapan saja.</p><div class="toolbar-left"><button class="ghost" data-action="reset-demo">Reset Data Demo</button><button class="primary" data-action="open-auth">Masuk ke Cloud</button><button class="ghost" data-action="contact-admin">Daftar — Chat Admin</button></div></div><div class="setting-block"><h3>Preview Role Demo</h3><p class="muted">Uji tampilan dan menu untuk role berbeda.</p><div class="segmented role-preview">${Object.keys(ROLE_LABELS).map(r=>`<button class="segment ${currentRole()===r?'active':''}" data-action="preview-role" data-role="${r}">${ROLE_LABELS[r]}</button>`).join('')}</div></div>`:''}
     <div class="setting-block"><div class="status-row"><div><h3>Mode Data</h3><div class="muted">${state.mode==='cloud'?'Cloud BizControl — data tersimpan dan sinkron antar perangkat':'Demo Sandbox — data simulasi hanya di browser ini'}</div></div><span class="pill ${state.mode==='cloud'?'good':'warn'}">${state.mode==='cloud'?'CLOUD':'DEMO'}</span></div></div>
-    ${canEdit?`<div class="setting-block"><h3>Profil & Kontrol Bisnis</h3><p class="muted">Profil dokumen dan kebijakan stok.</p><div class="status-row"><span class="micro">${escapeHtml(activeBusiness()?.address||'Alamat bisnis belum diatur')} · Stok minus: <b>${activeBusiness()?.allow_negative_stock?'Diizinkan':'Diblokir'}</b></span><button class="soft-btn" data-action="business-profile">Atur Profil & Stok</button></div></div>`:''}
-    ${currentRole()==='owner'?`<div class="setting-block"><h3>Security Key Hapus Data</h3><p class="muted">PIN 6 digit. Cloud mengunci 15 menit setelah 5 percobaan salah.</p><button class="soft-btn" data-action="security-key">Atur / Ganti Key</button></div>`:''}
-    ${can('team_view')?`<div class="setting-block"><h3>Tim & Role</h3><p class="muted">Owner, Admin, Kasir, Finance, Gudang, Staff.</p><button class="soft-btn" data-nav="team">Buka Pengaturan Tim</button></div>`:''}
-    ${can('audit')?`<div class="setting-block"><h3>Audit Log</h3><p class="muted">Jejak perubahan data.</p><button class="soft-btn" data-nav="audit">Buka Audit Log</button></div>`:''}
+    ${state.isSystemAdmin?`<div class="setting-block admin-system-card"><h3>Admin Sistem</h3><p class="muted">Khusus pengelola BizControl: undang Owner baru dan kirim reset password Owner.</p><button class="soft-btn" data-nav="systemAdmin">Buka Admin Sistem</button></div>`:''}
+    ${canEdit&&activeBusiness()?`<div class="setting-block"><h3>Profil & Kontrol Bisnis</h3><p class="muted">Profil dokumen dan kebijakan stok.</p><div class="status-row"><span class="micro">${escapeHtml(activeBusiness()?.address||'Alamat bisnis belum diatur')} · Stok minus: <b>${activeBusiness()?.allow_negative_stock?'Diizinkan':'Diblokir'}</b></span><button class="soft-btn" data-action="business-profile">Atur Profil & Stok</button></div></div>`:''}
+    ${currentRole()==='owner'&&activeBusiness()?`<div class="setting-block"><h3>Security Key Hapus Data</h3><p class="muted">PIN 6 digit. Cloud mengunci 15 menit setelah 5 percobaan salah.</p><button class="soft-btn" data-action="security-key">Atur / Ganti Key</button></div>`:''}
+    ${can('team_view')&&activeBusiness()?`<div class="setting-block"><h3>Tim & Role</h3><p class="muted">Owner dapat mengundang, mengubah role, mengirim reset password, dan mencabut akses karyawan.</p><button class="soft-btn" data-nav="team">Buka Pengaturan Tim</button></div>`:''}
+    ${can('audit')&&activeBusiness()?`<div class="setting-block"><h3>Audit Log</h3><p class="muted">Jejak perubahan data.</p><button class="soft-btn" data-nav="audit">Buka Audit Log</button></div>`:''}
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
-    ${can('export')||state.mode==='local'?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
+    ${((can('export')&&activeBusiness())||state.mode==='local')?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.6 Multi-Item Cashier</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.7.2 Permission/Deploy Fix</span></div></div>
+  </div>`;
+}
+
+function renderSystemAdmin(){
+  if(state.mode!=='cloud'||!state.isSystemAdmin)return accessDenied('Admin Sistem');
+  const rows=(state.managedOwners||[]).map(o=>`<tr><td>${escapeHtml(o.email||'-')}</td><td><span class="pill ${o.status==='active'?'good':'warn'}">${o.status==='active'?'Aktif':'Menunggu Undangan'}</span></td><td>${num(o.business_count||0)}</td><td>${o.created_at?new Date(o.created_at).toLocaleDateString('id-ID'):'-'}</td><td><button class="row-action" data-action="reset-owner-password" data-email="${escapeAttr(o.email||'')}">Kirim Reset Password</button></td></tr>`).join('');
+  return `<div class="panel admin-system-panel">
+    <div class="demo-security-warning admin-only-warning"><b>ADMIN SISTEM</b><span>Menu ini hanya aktif untuk email Admin BizControl yang diizinkan di Edge Function. Tombol yang dipaksa muncul lewat DevTools tetap tidak dapat menjalankan aksi tanpa otorisasi server.</span></div>
+    <div class="setting-block"><h3>Daftarkan Owner Baru</h3><p class="muted">Owner baru menerima email undangan, membuat password, lalu akun dapat membuat bisnis Cloud. Tidak ada pendaftaran publik.</p><form id="systemOwnerInviteForm" class="inline-admin-form"><input name="email" type="email" placeholder="owner@bisnis.com" required autocomplete="email"><button class="primary" type="submit">Kirim Undangan Owner</button></form></div>
+    <div class="table-card"><div class="table-head"><h3>Owner yang Dikelola</h3><button class="ghost" data-action="refresh-managed-owners">↻ Refresh</button></div><div class="table-wrap"><table><thead><tr><th>Email Owner</th><th>Status</th><th>Bisnis</th><th>Sejak</th><th>Aksi</th></tr></thead><tbody>${rows||'<tr><td colspan="5" class="empty">Belum ada owner terkelola.</td></tr>'}</tbody></table></div></div>
   </div>`;
 }
 
@@ -409,6 +425,8 @@ function bindPageActions(){
   const ps=$('#productSearch'); if(ps) ps.oninput=()=>filterRows(ps,'table tbody tr');
   const es=$('#expenseSearch'); if(es) es.oninput=()=>filterRows(es,'table tbody tr');
   bindAuditFilters();
+  const ownerInviteForm=$('#systemOwnerInviteForm');
+  if(ownerInviteForm) ownerInviteForm.onsubmit=async e=>{e.preventDefault();const f=new FormData(ownerInviteForm);await withSubmitBusy(ownerInviteForm,async()=>{try{const result=await invokeAccountAdmin('invite-owner',{email:f.get('email'),redirect_to:recoveryRedirectUrl()});ownerInviteForm.reset();await loadManagedOwners();render();toast(result?.message||'Undangan Owner diproses','success',6500)}catch(err){toast(err.message,'error');throw err}})};
 }
 function filterRows(input,selector){ const q=input.value.toLowerCase(); $$(selector).forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'); }
 
@@ -432,6 +450,8 @@ function handleAction(action,el){
   if(action==='business-profile') return requirePermission('business_edit')&&openBusinessProfileModal();
   if(action==='security-key') return currentRole()==='owner'?openSecurityKeyModal():toast('Hanya owner yang dapat mengatur Security Key','error');
   if(action==='open-auth') return openCloudAuth();
+  if(action==='contact-admin') return contactSystemAdmin();
+  if(action==='change-password') return openChangePasswordModal();
   if(action==='export-json') return exportJson();
   if(action==='import-json') return importJson();
   if(action==='open-day-sales') return openDaySalesModal(el?.dataset?.date);
@@ -451,6 +471,9 @@ function handleAction(action,el){
   if(action==='add-member') return openMemberModal();
   if(action==='edit-member') return openMemberModal({user_id:id,email:el.dataset.email,role:el.dataset.role});
   if(action==='remove-member') return removeMember(id,el.dataset.email);
+  if(action==='reset-member-password') return sendMemberPasswordReset(id,el.dataset.email);
+  if(action==='reset-owner-password') return sendOwnerPasswordReset(el.dataset.email);
+  if(action==='refresh-managed-owners') return loadManagedOwners().then(()=>render()).then(()=>toast('Daftar Owner diperbarui','success')).catch(e=>toast(e.message,'error'));
   if(action==='preview-role'){state.demoRole=el.dataset.role;persist();render();toast('Preview role: '+ROLE_LABELS[state.demoRole]);return;}
   if(action==='logout') return logoutCloud();
   if(action==='reset-demo'){ if(confirm('Reset seluruh data demo ke kondisi awal?')){ localStorage.removeItem('bizcontrol_v1'); localStorage.removeItem('bc_delete_keys'); state=defaultState();state.mode='local';state.page='dashboard'; persist(); render(); toast('Data demo dikembalikan ke kondisi awal','success'); }}
@@ -938,6 +961,75 @@ async function addBusiness(name){
 }
 
 
+function supportWhatsApp(){
+  const raw=String((window.BIZCONTROL_CONFIG||{}).supportWhatsApp||'628117199210').replace(/\D/g,'');
+  return raw.startsWith('0')?'62'+raw.slice(1):raw;
+}
+function contactSystemAdmin(){
+  const phone=supportWhatsApp();
+  if(!phone)return toast('Nomor Admin BizControl belum dikonfigurasi','error');
+  const msg=encodeURIComponent('Halo Admin BizControl, saya ingin mendaftar / mengaktifkan akun Owner BizControl.');
+  window.open(`https://wa.me/${phone}?text=${msg}`,'_blank','noopener,noreferrer');
+}
+
+async function invokeAccountAdmin(action,payload={}){
+  const c=state.cloudConfig||loadCloudConfig();if(!c?.url||!c?.key)throw new Error('Layanan Cloud belum tersedia pada deployment ini');
+  if(!state.session?.access_token)throw new Error('Sesi login tidak tersedia');
+  const call=async(retry=true)=>{
+    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),15000);
+    try{
+      const url=new URL('/functions/v1/account-admin',c.url).toString();
+      const res=await fetch(url,{method:'POST',headers:{apikey:c.key,Authorization:'Bearer '+state.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action,...payload}),signal:controller.signal});
+      let data={};try{data=await res.json()}catch{}
+      if(res.status===401&&retry&&state.session?.refresh_token){await refreshCloudSession();return call(false)}
+      if(!res.ok)throw new Error(data.error||data.message||`Account Admin HTTP ${res.status}`);
+      return data;
+    }catch(err){
+      if(err.name==='AbortError')throw new Error('Layanan akun timeout. Coba lagi.');
+      if(err instanceof TypeError&&/fetch/i.test(String(err.message||'')))throw new Error('Edge Function account-admin tidak dapat dijangkau. Pastikan function sudah Deploy dan CORS benar.');
+      throw err;
+    }finally{clearTimeout(timeout)}
+  };
+  return call(true);
+}
+async function checkSystemAdmin(){
+  if(state.mode!=='cloud'||!state.session?.access_token){state.isSystemAdmin=false;return false;}
+  try{
+    const r=await invokeAccountAdmin('status');
+    if(r?.is_system_admin&&r?.server_ready===false)throw new Error(r?.server_error||'Backend Admin Sistem belum siap');
+    state.isSystemAdmin=Boolean(r?.is_system_admin);
+    return state.isSystemAdmin;
+  }catch(e){
+    console.warn('System admin status:',e.message);
+    state.isSystemAdmin=false;
+    return false;
+  }
+}
+async function loadManagedOwners(){
+  if(!state.isSystemAdmin){state.managedOwners=[];return []}
+  const r=await invokeAccountAdmin('list-owners');state.managedOwners=Array.isArray(r?.owners)?r.owners:[];return state.managedOwners;
+}
+async function sendMemberPasswordReset(userId,email){
+  if(state.mode!=='cloud'||currentRole()!=='owner')return toast('Hanya Owner yang dapat mengirim reset password karyawan','error');
+  if(!confirm(`Kirim link reset password ke ${email||'karyawan ini'}?`))return;
+  try{const r=await invokeAccountAdmin('reset-member',{business_id:state.currentBusinessId,user_id:userId,redirect_to:recoveryRedirectUrl()});toast(r?.message||'Link reset password dikirim','success',6000)}catch(e){toast(e.message,'error')}
+}
+async function sendOwnerPasswordReset(email){
+  if(!state.isSystemAdmin)return toast('Hanya Admin Sistem yang dapat mengirim reset password Owner','error');
+  if(!confirm(`Kirim link reset password ke Owner ${email}?`))return;
+  try{const r=await invokeAccountAdmin('reset-owner',{email,redirect_to:recoveryRedirectUrl()});toast(r?.message||'Link reset password Owner dikirim','success',6000)}catch(e){toast(e.message,'error')}
+}
+function openChangePasswordModal(){
+  if(state.mode!=='cloud'||!state.session?.access_token)return toast('Silakan login ke akun Cloud terlebih dahulu','error');
+  openModal(`<div class="modal-title"><h2>Ganti Password</h2><button class="modal-close">×</button></div><form id="changePasswordForm" class="form-grid single"><div class="form-note">Password baru minimal 8 karakter. Setelah berhasil, Anda akan diminta login ulang.</div><label>Password Baru<input name="password" type="password" minlength="8" required autocomplete="new-password" placeholder="Minimal 8 karakter"></label><label>Ulangi Password Baru<input name="confirm" type="password" minlength="8" required autocomplete="new-password" placeholder="Ulangi password"></label><div class="modal-actions"><button type="button" class="ghost modal-close">Batal</button><button type="submit" class="primary">Simpan Password Baru</button></div></form>`);
+  const form=$('#changePasswordForm');form.onsubmit=async e=>{e.preventDefault();const f=new FormData(form);const password=String(f.get('password')||''),confirmPassword=String(f.get('confirm')||'');if(password.length<8)return toast('Password minimal 8 karakter','error');if(password!==confirmPassword)return toast('Ulangi password harus sama','error');await withSubmitBusy(form,async()=>{try{
+    const c=state.cloudConfig||loadCloudConfig();const token=state.session?.access_token;
+    const res=await fetch(c.url+'/auth/v1/user',{method:'PUT',headers:{apikey:c.key,Authorization:'Bearer '+token,'Content-Type':'application/json'},body:JSON.stringify({password})});let data={};try{data=await res.json()}catch{};if(!res.ok)throw new Error(data.msg||data.error_description||data.message||'Gagal mengubah password');
+    try{await fetch(c.url+'/auth/v1/logout',{method:'POST',headers:{apikey:c.key,Authorization:'Bearer '+token}})}catch{}
+    closeModal();stopPolling();clearSession();state.mode='local';state.isSystemAdmin=false;state.managedOwners=[];setAuthMode('login');showAuth();toast('Password berhasil diubah. Silakan login kembali.','success',7000);
+  }catch(err){toast(err.message,'error');throw err}})};
+}
+
 async function invokeTeamInvite(email,role){
   const c=state.cloudConfig||loadCloudConfig();if(!c?.url||!c?.key)throw new Error('Layanan Cloud belum tersedia pada deployment ini');
   if(!state.session?.access_token)throw new Error('Sesi login tidak tersedia');
@@ -979,7 +1071,7 @@ async function removeMember(userId,email){
     await cloudLoadTeam();render();toast('Akses anggota berhasil dicabut','success',5000);
   }catch(e){toast(e.message,'error')}
 }
-async function logoutCloud(){try{stopPolling();clearSession();state.mode='local';state.currentRole='owner';setAuthMode('login');showAuth();toast('Berhasil keluar','success')}catch(e){toast(e.message,'error')}}
+async function logoutCloud(){try{stopPolling();clearSession();state.mode='local';state.currentRole='owner';state.isSystemAdmin=false;state.managedOwners=[];setAuthMode('login');showAuth();toast('Berhasil keluar','success')}catch(e){toast(e.message,'error')}}
 
 // -------- Cloud / Supabase REST --------
 function loadCloudConfig(){
@@ -987,9 +1079,20 @@ function loadCloudConfig(){
   const r=window.BIZCONTROL_CONFIG||{};
   const runtimeUrl=String(r.supabaseUrl||'').trim().replace(/\/+$/,'');
   const runtimeKey=String(r.publishableKey||'').trim();
-  if(runtimeUrl&&runtimeKey)return {url:runtimeUrl,key:runtimeKey,turnstileSiteKey:String(r.turnstileSiteKey||'').trim(),managed:true};
+  if(runtimeUrl&&runtimeKey)return {url:runtimeUrl,key:runtimeKey,turnstileSiteKey:String(r.turnstileSiteKey||'').trim(),supportWhatsApp:String(r.supportWhatsApp||'').trim(),managed:true};
   return null;
 }
+function deploymentConfigStatus(){
+  const c=loadCloudConfig();
+  return {
+    configured:Boolean(c?.url&&c?.key),
+    supabaseUrl:c?.url||'',
+    publishableKeyPresent:Boolean(c?.key),
+    source:'runtime-config.js'
+  };
+}
+window.BizControlDeploymentStatus=deploymentConfigStatus;
+
 function loadSession(){ try{let raw=sessionStorage.getItem('bc_session');if(!raw){const legacy=localStorage.getItem('bc_session');if(legacy){sessionStorage.setItem('bc_session',legacy);localStorage.removeItem('bc_session');raw=legacy;}}return JSON.parse(raw||'null')}catch{return null} }
 function saveSession(s){ sessionStorage.setItem('bc_session',JSON.stringify(s)); localStorage.removeItem('bc_session'); state.session=s; }
 function clearSession(){sessionStorage.removeItem('bc_session');localStorage.removeItem('bc_session');state.session=null;}
@@ -1019,18 +1122,15 @@ async function ensureTurnstile(){
 }
 function captchaToken(){const key=(state.cloudConfig||loadCloudConfig())?.turnstileSiteKey;if(!key)return null;if(!window.turnstile||turnstileWidgetId===null)throw new Error('CAPTCHA belum siap. Coba beberapa detik lagi.');const token=window.turnstile.getResponse(turnstileWidgetId);if(!token)throw new Error('Selesaikan CAPTCHA terlebih dahulu.');return token;}
 function resetCaptcha(){try{if(window.turnstile&&turnstileWidgetId!==null)window.turnstile.reset(turnstileWidgetId)}catch{}}
-async function authSubmit(email,password,mode){
+async function authSubmit(email,password){
   const c=state.cloudConfig||loadCloudConfig(); if(!c) throw new Error('Layanan Cloud belum tersedia pada deployment ini');
   if(String(password||'').length<8)throw new Error('Password minimal 8 karakter');
-  const endpoint=mode==='signup'?'/auth/v1/signup':'/auth/v1/token?grant_type=password'; const token=captchaToken();
-  const payload={email,password};
-  if(mode==='signup')payload.data={bizcontrol_account_type:'owner',bizcontrol_self_signup:true};
-  if(token)payload.gotrue_meta_security={captcha_token:token};
-  const res=await fetch(c.url+endpoint,{method:'POST',headers:{'apikey':c.key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  const token=captchaToken();const payload={email,password};if(token)payload.gotrue_meta_security={captcha_token:token};
+  const res=await fetch(c.url+'/auth/v1/token?grant_type=password',{method:'POST',headers:{'apikey':c.key,'Content-Type':'application/json'},body:JSON.stringify(payload)});
   let data={};try{data=await res.json()}catch{}
   resetCaptcha();
   if(!res.ok){if(res.status===429)throw new Error('Terlalu banyak percobaan login. Tunggu sebentar lalu coba lagi.');throw new Error(data.msg||data.error_description||data.message||'Autentikasi gagal');}
-  if(mode==='signup'&&!data.access_token){toast('Akun dibuat. Cek email jika konfirmasi diaktifkan.');return null;} saveSession(data); return data;
+  saveSession(data); return data;
 }
 
 function recoveryRedirectUrl(){
@@ -1061,8 +1161,8 @@ async function loadRecoverySessionFromUrl(){
   let user={};try{user=await userRes.json()}catch{}
   if(!userRes.ok)throw new Error(user?.message||'Link tidak valid atau sudah kedaluwarsa');
   saveSession({access_token:accessToken,refresh_token:refreshToken,token_type:hash.get('token_type')||'bearer',expires_in:Number(hash.get('expires_in')||3600),user});
-  authLinkType=linkType;state.cloudConfig=c;state.mode='cloud';setAuthMode('reset');showAuth();
-  if(linkType==='invite')toast('Undangan diterima. Buat password untuk mengaktifkan akun karyawan.','success',7000);
+  authLinkType=linkType;authInviteKind=String(user?.user_metadata?.bizcontrol_account_type||'employee');state.cloudConfig=c;state.mode='cloud';setAuthMode('reset');showAuth();
+  if(linkType==='invite')toast(authInviteKind==='owner'?'Undangan Owner diterima. Buat password untuk mengaktifkan akun BizControl.':'Undangan karyawan diterima. Buat password untuk mengaktifkan akun.','success',7000);
   return true;
 }
 async function updateRecoveredPassword(password){
@@ -1074,20 +1174,20 @@ async function updateRecoveredPassword(password){
   if(!res.ok)throw new Error(data.msg||data.error_description||data.message||'Gagal mengubah password');
   // End the recovery session and require a normal sign-in with the new password.
   try{await fetch(c.url+'/auth/v1/logout',{method:'POST',headers:{apikey:c.key,Authorization:'Bearer '+token}})}catch{}
-  const wasInvite=authLinkType==='invite';authLinkType=null;clearSession();history.replaceState({},document.title,location.pathname+location.search);setAuthMode('login');showAuth();toast(wasInvite?'Akun karyawan aktif. Silakan login dengan password baru.':'Password berhasil diubah. Silakan login dengan password baru.','success',7000);return true;
+  const wasInvite=authLinkType==='invite';const inviteKind=authInviteKind;authLinkType=null;authInviteKind=null;clearSession();history.replaceState({},document.title,location.pathname+location.search);setAuthMode('login');showAuth();toast(wasInvite?(inviteKind==='owner'?'Akun Owner aktif. Silakan login dengan password baru.':'Akun karyawan aktif. Silakan login dengan password baru.'):'Password berhasil diubah. Silakan login dengan password baru.','success',7000);return true;
 }
 function setAuthMode(mode){
   authMode=mode;const tabs=$('#authTabs'),emailLabel=$('#authEmailLabel'),passwordLabel=$('#authPasswordLabel'),confirmLabel=$('#authPasswordConfirmLabel');
-  const email=$('#authEmail'),password=$('#authPassword'),confirm=$('#authPasswordConfirm'),forgot=$('#forgotPasswordBtn'),back=$('#authBackLogin'),subtitle=$('#authSubtitle');
-  $('#authLoginTab').classList.toggle('active',mode==='login');$('#authSignupTab').classList.toggle('active',mode==='signup');
-  tabs.classList.toggle('hidden',mode==='recover'||mode==='reset');
+  const email=$('#authEmail'),password=$('#authPassword'),confirm=$('#authPasswordConfirm'),forgot=$('#forgotPasswordBtn'),back=$('#authBackLogin'),subtitle=$('#authSubtitle'),contact=$('#contactAdminBtn'),demo=$('#backToDemo');
+  tabs?.classList.toggle('hidden',mode==='recover'||mode==='reset');
   emailLabel.classList.toggle('hidden',mode==='reset');passwordLabel.classList.toggle('hidden',mode==='recover');confirmLabel.classList.toggle('hidden',mode!=='reset');
   email.disabled=mode==='reset';email.required=mode!=='reset';password.disabled=mode==='recover';password.required=mode!=='recover';confirm.disabled=mode!=='reset';confirm.required=mode==='reset';
   password.autocomplete=mode==='reset'?'new-password':'current-password';
-  forgot.classList.toggle('hidden',mode!=='login');back.classList.toggle('hidden',mode==='login'||mode==='signup'||mode==='reset');
+  forgot.classList.toggle('hidden',mode!=='login');back.classList.toggle('hidden',mode==='login'||mode==='reset');
+  contact?.classList.toggle('hidden',mode!=='login');demo?.classList.toggle('hidden',mode==='reset');
   $('#authPasswordLabelText').textContent=mode==='reset'?'Password Baru':'Password';
-  $('#authSubmit').textContent=mode==='login'?'Masuk':mode==='signup'?'Daftar':mode==='recover'?'Kirim Link Reset':'Simpan Password Baru';
-  subtitle.textContent=mode==='recover'?'Masukkan email akun. Demi keamanan, sistem tidak akan memberi tahu apakah email terdaftar.':mode==='reset'?(authLinkType==='invite'?'Undangan diterima. Buat password baru minimal 8 karakter, lalu login untuk mulai bekerja.':'Buat password baru minimal 8 karakter. Setelah berhasil, Anda akan diminta login kembali.'):(mode==='signup'?'Buat akun Owner untuk mulai menyimpan data bisnis di Cloud.':'Masuk ke akun BizControl untuk mengakses data bisnis Anda.');
+  $('#authSubmit').textContent=mode==='login'?'Masuk':mode==='recover'?'Kirim Link Reset':'Simpan Password Baru';
+  subtitle.textContent=mode==='recover'?'Masukkan email akun. Demi keamanan, sistem tidak akan memberi tahu apakah email terdaftar.':mode==='reset'?(authLinkType==='invite'?(authInviteKind==='owner'?'Undangan Owner diterima. Buat password baru minimal 8 karakter, lalu login.':'Undangan diterima. Buat password baru minimal 8 karakter, lalu login untuk mulai bekerja.'):'Buat password baru minimal 8 karakter. Setelah berhasil, Anda akan diminta login kembali.'):'Masuk ke akun BizControl. Pendaftaran Owner baru hanya melalui Admin BizControl.';
   if(mode!=='reset')confirm.value='';
   ensureTurnstile().catch(()=>{});
 }
@@ -1096,24 +1196,38 @@ async function cloudBootstrap(){
     state.mode='cloud'; state.cloudConfig=loadCloudConfig()||state.cloudConfig; state.session=loadSession()||state.session;
     if(!state.session?.access_token){showAuth();return;}
 
-    // First successful login activates any membership created by an email invitation.
+    // First successful login activates trusted invitations.
     await cloudRequest('/rest/v1/rpc/activate_pending_memberships',{method:'POST'}).catch(e=>console.warn('activate membership:',e.message));
+    await cloudRequest('/rest/v1/rpc/activate_owner_account',{method:'POST'}).catch(e=>console.warn('activate owner:',e.message));
+    await checkSystemAdmin();
     await cloudLoadBusinesses();
 
     if(!state.businesses.length){
-      const accountType=state.session?.user?.user_metadata?.bizcontrol_account_type||'';
-      if(accountType==='owner'){
+      let canCreate=false;try{canCreate=Boolean(await cloudRequest('/rest/v1/rpc/can_create_business',{method:'POST'}))}catch(e){console.warn('can create business:',e.message)}
+      if(canCreate){
         await addBusiness('Bisnis Saya');
         await cloudLoadBusinesses();
+      }else if(state.isSystemAdmin){
+        state.currentBusinessId=null;state.currentRole='staff';state.products=[];state.sales=[];state.saleItems=[];state.payments=[];state.expenses=[];state.auditLogs=[];state.teamMembers=[];state.page='systemAdmin';
+        await loadManagedOwners().catch(e=>console.warn('managed owners:',e.message));hideAuth();startPolling();render();toast('Admin Sistem tersambung');return;
       }else{
         stopPolling();state.currentBusinessId=null;state.currentRole='staff';state.products=[];state.sales=[];state.saleItems=[];state.payments=[];state.expenses=[];state.auditLogs=[];state.teamMembers=[];
-        clearSession();setAuthMode('login');showAuth();toast('Akun ini tidak memiliki akses bisnis aktif. Hubungi Owner jika akses Anda dicabut atau undangan belum aktif.','error',8000);return;
+        clearSession();setAuthMode('login');showAuth();toast('Akun ini tidak memiliki akses aktif. Hubungi Owner atau Admin BizControl.','error',8000);return;
       }
     }
 
     if(!state.currentBusinessId || !state.businesses.some(b=>b.id===state.currentBusinessId)) state.currentBusinessId=state.businesses[0]?.id;
-    await cloudLoadBusinessData(); hideAuth(); startPolling(); render(); toast('Cloud tersambung');
-  }catch(err){ console.error(err); toast(err.message); if(/JWT|token|session|401/i.test(err.message)){clearSession();showAuth();} }
+    await cloudLoadBusinessData(); if(state.isSystemAdmin)await loadManagedOwners().catch(e=>console.warn('managed owners:',e.message)); hideAuth(); startPolling(); render(); toast('Cloud tersambung');
+  }catch(err){
+    console.error('Cloud bootstrap gagal:',err);
+    stopPolling();
+    // Never leave the user on a half-loaded/blank application shell.
+    // Keep the session for non-auth errors so the user can retry after deployment/database is fixed.
+    if(/JWT|token|session|401/i.test(String(err.message||''))) clearSession();
+    setAuthMode('login');
+    showAuth();
+    toast('Cloud gagal dimuat: '+(err.message||'Unknown error'),'error',9000);
+  }
 }
 async function cloudLoadBusinesses(){
   const rows=await cloudRequest('/rest/v1/businesses?select=*&order=created_at.asc');state.businesses=rows||[];
@@ -1141,6 +1255,7 @@ async function refreshAuditLog(){
 function startPolling(){stopPolling();pollTimer=setInterval(async()=>{if(state.mode==='cloud'&&state.session&&isOnline()){try{
   await cloudLoadBusinesses();
   if(!state.businesses.length){
+    if(state.isSystemAdmin){state.page='systemAdmin';await loadManagedOwners().catch(()=>{});render();return;}
     stopPolling();clearSession();state.currentBusinessId=null;state.currentRole='staff';showAuth();toast('Akses bisnis Anda sudah tidak aktif. Hubungi Owner.','error',8000);return;
   }
   await cloudLoadBusinessData();if($('#modalBackdrop').classList.contains('hidden'))render();else renderSyncBadge();
@@ -1154,7 +1269,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.6',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.7.2',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('item-penjualan',businessData(state.saleItems||[])),500);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),750);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),1000)}
@@ -1175,6 +1290,7 @@ function enterDemoSandbox(){
   clearSession();
   state.mode='local';
   state.currentRole='owner';
+  state.isSystemAdmin=false;state.managedOwners=[];
   if(!state.businesses?.length){state=defaultState();}
   hideAuth();
   render();
@@ -1184,24 +1300,25 @@ function enterDemoSandbox(){
 // -------- Global bindings --------
 $('#quickSaleBtn').onclick=()=>requirePermission('sales_create')&&openSaleModal();
 $('#openSettingsBtn').onclick=()=>navigate('settings');
+$('#accountSettingsBtn').onclick=()=>navigate('settings');
 $('#logoutBtn').onclick=()=>logoutCloud();
 $('#openAuthBtn').onclick=()=>openCloudAuth();
 $('#newBusinessBtn').onclick=openBusinessModal;
 $('#syncNowBtn').onclick=async()=>{if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();render();toast('Data tersinkron','success')}catch(e){toast(e.message,'error')}}else toast('Mode demo tersimpan di perangkat ini')};
 $('#modalBackdrop').classList.add('hidden');
 
-$('#authLoginTab').onclick=()=>setAuthMode('login');
-$('#authSignupTab').onclick=()=>setAuthMode('signup');
 $('#forgotPasswordBtn').onclick=()=>setAuthMode('recover');
+$('#contactAdminBtn').onclick=()=>contactSystemAdmin();
 $('#authBackLogin').onclick=()=>setAuthMode('login');
 $('#authForm').onsubmit=async e=>{e.preventDefault();try{
   if(authMode==='recover'){await sendPasswordRecovery($('#authEmail').value);setAuthMode('login');return;}
   if(authMode==='reset'){
     const p=$('#authPassword').value,c=$('#authPasswordConfirm').value;if(p!==c)throw new Error('Ulangi password harus sama');await updateRecoveredPassword(p);return;
   }
-  const session=await authSubmit($('#authEmail').value,$('#authPassword').value,authMode);if(session)await cloudBootstrap();
+  const session=await authSubmit($('#authEmail').value,$('#authPassword').value);if(session)await cloudBootstrap();
 }catch(err){toast(err.message,'error')}};
 $('#backToDemo').onclick=()=>enterDemoSandbox();
+$('#demoLoginBtn').onclick=()=>openCloudAuth();
 
 window.addEventListener('online',async()=>{toast('Koneksi kembali. Menyinkronkan...','success');if(state.mode==='cloud'){try{await cloudLoadBusinesses();await cloudLoadBusinessData();startPolling();render()}catch(e){toast(e.message,'error')}}});
 window.addEventListener('offline',()=>{setSyncState('offline');toast('Internet terputus. Jangan tutup form yang belum tersimpan.','error',5000)});
