@@ -5,6 +5,70 @@ const num = (n=0) => new Intl.NumberFormat('id-ID').format(Number(n)||0);
 const today = () => new Date().toISOString().slice(0,10);
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36)+Math.random().toString(36).slice(2));
 const monthKey = (d) => String(d||'').slice(0,7);
+const pad2 = (n) => String(n).padStart(2,'0');
+const localMonthKey = (d=new Date()) => `${d.getFullYear()}-${pad2(d.getMonth()+1)}`;
+const localYear = (d=new Date()) => String(d.getFullYear());
+const monthLabel = (key) => {
+  if(!/^\d{4}-\d{2}$/.test(String(key||''))) return '-';
+  const [y,m]=key.split('-').map(Number);
+  return new Date(y,m-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'});
+};
+const shortDateLabel = (value) => value ? new Date(value+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '-';
+
+const viewFilters = {
+  sales:{month:'',from:'',to:''},
+  expenses:{month:'',from:'',to:''},
+  reports:{month:localMonthKey(),year:localYear()}
+};
+
+function periodFilterRows(rows,filter){
+  const f=filter||{};
+  if(f.month) return rows.filter(row=>monthKey(row.date)===f.month);
+  return rows.filter(row=>{
+    const d=String(row.date||'');
+    if(f.from&&d<f.from) return false;
+    if(f.to&&d>f.to) return false;
+    return true;
+  });
+}
+function periodLabel(filter){
+  const f=filter||{};
+  if(f.month) return monthLabel(f.month);
+  if(f.from&&f.to) return `${shortDateLabel(f.from)} – ${shortDateLabel(f.to)}`;
+  if(f.from) return `Mulai ${shortDateLabel(f.from)}`;
+  if(f.to) return `Sampai ${shortDateLabel(f.to)}`;
+  return 'Semua tanggal';
+}
+function updatePeriodDate(kind,field,value){
+  const f=viewFilters[kind]; if(!f)return;
+  f.month=''; f[field]=value||'';
+  if(f.from&&f.to&&f.from>f.to){ const x=f.from;f.from=f.to;f.to=x; }
+  render();
+}
+function updatePeriodMonth(kind,value){
+  const f=viewFilters[kind]; if(!f)return;
+  f.month=value||'';
+  if(f.month){f.from='';f.to='';}
+  render();
+}
+function resetPeriodFilter(kind){
+  if(!viewFilters[kind])return;
+  viewFilters[kind]={month:'',from:'',to:''};
+  render();
+}
+function periodFilterHtml(kind){
+  const f=viewFilters[kind];
+  const prefix=kind==='sales'?'sales':'expense';
+  return `<div class="period-filter" data-period-kind="${kind}">
+    <div class="period-filter-head"><div><strong>Filter Periode</strong><span>${escapeHtml(periodLabel(f))}</span></div><button type="button" class="period-reset" data-action="reset-${kind}-period">Reset</button></div>
+    <div class="period-filter-controls">
+      <label class="period-field period-month"><span>Bulan</span><input id="${prefix}MonthFilter" type="month" value="${escapeAttr(f.month||'')}"></label>
+      <div class="period-separator">atau</div>
+      <label class="period-field"><span>Dari tanggal</span><input id="${prefix}FromFilter" type="date" value="${escapeAttr(f.from||'')}"></label>
+      <label class="period-field"><span>Sampai tanggal</span><input id="${prefix}ToFilter" type="date" value="${escapeAttr(f.to||'')}"></label>
+    </div>
+  </div>`;
+}
 
 const NAV = [
   {id:'dashboard',label:'Dashboard',icon:'⌂'},
@@ -246,8 +310,12 @@ function kpiCard(label,value,foot,action){ return `<button type="button" class="
 
 function renderSales(){
   if(!can('sales_view')) return accessDenied('Kasir / Penjualan');
-  const sales=businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk" /></div><div class="toolbar-right">${can('sales_create')?'<button class="primary" data-action="add-sale">+ Penjualan Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-sales">Export CSV</button>':''}</div></div>${salesTable(sales,'Semua Penjualan')}`;
+  const allSales=businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const sales=periodFilterRows(allSales,viewFilters.sales);
+  const period=periodLabel(viewFilters.sales);
+  return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk" /></div><div class="toolbar-right">${can('sales_create')?'<button class="primary" data-action="add-sale">+ Penjualan Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>
+  ${periodFilterHtml('sales')}
+  ${salesTable(sales,`Penjualan · ${period}`)}`;
 }
 
 function salesTable(sales,title){
@@ -255,7 +323,7 @@ function salesTable(sales,title){
   if(currentRole()==='warehouse'){
     return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris fulfilment</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Surat Jalan</th><th>Customer</th><th>HP</th><th>Tujuan</th><th>Produk</th><th>Qty</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>`<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.delivery_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(s.customer_phone||'-')}</td><td>${escapeHtml(s.customer_address||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td><div class="row-actions">${can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Surat Jalan</button>`:'—'}</div></td></tr>`).join('')}</tbody></table></div></div>`;
   }
-  return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} baris</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${escapeAttr(s.id)}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${escapeAttr(s.id)}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${escapeAttr(s.id)}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
+  return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3><span class="muted">${sales.length} transaksi · ${rupiah(sales.reduce((a,s)=>a+Number(s.total||0),0))}</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Invoice</th><th>Customer</th><th>Produk</th><th>Qty</th><th>Total</th><th>Dibayar</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${sales.map(s=>{const due=Math.max(Number(s.total)-Number(s.paid_amount),0);const actions=[can('payments_manage')?`<button type="button" class="row-action pay" data-action="payments-sale" data-id="${escapeAttr(s.id)}">Pembayaran</button>`:'',can('print')?`<button type="button" class="row-action print" data-action="print-sale" data-id="${escapeAttr(s.id)}">Cetak</button>`:'',can('sales_edit')?`<button type="button" class="row-action edit" data-action="edit-sale" data-id="${escapeAttr(s.id)}">Edit</button>`:'',can('sales_delete')?`<button type="button" class="row-action delete" data-action="delete-sale" data-id="${escapeAttr(s.id)}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(s.date)}</td><td>${escapeHtml(s.invoice_no||'-')}</td><td>${escapeHtml(s.customer||'-')}</td><td>${escapeHtml(saleItemsLabel(s))}</td><td>${num(saleItemsQty(s))}</td><td class="money">${rupiah(s.total)}</td><td class="money">${rupiah(s.paid_amount)}</td><td><span class="pill ${due?'warn':'good'}">${due?'Belum Lunas':'Lunas'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
 }
 
 function renderProducts(){
@@ -267,27 +335,69 @@ function renderProducts(){
 
 function renderExpenses(){
   if(!can('expenses_view')) return accessDenied('Biaya Usaha');
-  const items=businessData(state.expenses).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="expenseSearch" placeholder="Cari deskripsi / kategori" /></div><div class="toolbar-right">${can('expenses_edit')?'<button class="primary" data-action="add-expense">+ Biaya Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-expenses">Export CSV</button>':''}</div></div>
-  <div class="table-card"><div class="table-head"><h3>Biaya Usaha</h3><span class="muted">Total ${rupiah(items.reduce((a,e)=>a+Number(e.amount),0))}</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Deskripsi</th><th>Metode</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody>${items.length?items.map(e=>{const actions=[can('expenses_edit')?`<button type="button" class="row-action edit" data-action="edit-expense" data-id="${e.id}">Edit</button>`:'',can('expenses_delete')?`<button type="button" class="row-action delete" data-action="delete-expense" data-id="${e.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(e.date)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(e.description)}</td><td>${escapeHtml(e.payment_method)}</td><td class="money">${rupiah(e.amount)}</td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join(''):`<tr><td colspan="6"><div class="empty">Belum ada biaya.</div></td></tr>`}</tbody></table></div></div>`;
+  const allItems=businessData(state.expenses).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+  const items=periodFilterRows(allItems,viewFilters.expenses);
+  const period=periodLabel(viewFilters.expenses);
+  return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="expenseSearch" placeholder="Cari deskripsi / kategori" /></div><div class="toolbar-right">${can('expenses_edit')?'<button class="primary" data-action="add-expense">+ Biaya Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-expenses">Export Periode CSV</button>':''}</div></div>
+  ${periodFilterHtml('expenses')}
+  <div class="table-card"><div class="table-head"><h3>Biaya · ${escapeHtml(period)}</h3><span class="muted">${items.length} transaksi · Total ${rupiah(items.reduce((a,e)=>a+Number(e.amount),0))}</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>Kategori</th><th>Deskripsi</th><th>Metode</th><th>Nilai</th><th>Aksi</th></tr></thead><tbody>${items.length?items.map(e=>{const actions=[can('expenses_edit')?`<button type="button" class="row-action edit" data-action="edit-expense" data-id="${e.id}">Edit</button>`:'',can('expenses_delete')?`<button type="button" class="row-action delete" data-action="delete-expense" data-id="${e.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${fmtDate(e.date)}</td><td>${escapeHtml(e.category)}</td><td>${escapeHtml(e.description)}</td><td>${escapeHtml(e.payment_method)}</td><td class="money">${rupiah(e.amount)}</td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join(''):`<tr><td colspan="6"><div class="empty">Tidak ada biaya pada periode ini.</div></td></tr>`}</tbody></table></div></div>`;
+}
+
+function reportMetricsForMonth(month){
+  const sales=businessData(state.sales).filter(s=>monthKey(s.date)===month);
+  const expenses=businessData(state.expenses).filter(e=>monthKey(e.date)===month);
+  const revenue=sales.reduce((a,s)=>a+Number(s.total||0),0);
+  const gross=sales.reduce((a,s)=>a+Number(s.gross_profit||0),0);
+  const hpp=Math.max(0,revenue-gross);
+  const exp=expenses.reduce((a,e)=>a+Number(e.amount||0),0);
+  const net=gross-exp;
+  const receivable=sales.reduce((a,s)=>a+Math.max(Number(s.total||0)-Number(s.paid_amount||0),0),0);
+  const margin=revenue?net/revenue:0;
+  const avgSale=sales.length?revenue/sales.length:0;
+  return {sales,expenses,revenue,gross,hpp,exp,net,receivable,margin,avgSale};
+}
+function reportYearOptions(){
+  const selectedYear=Number(viewFilters.reports.year||String(viewFilters.reports.month||'').slice(0,4)||localYear());
+  const years=new Set([Number(localYear()),selectedYear]);
+  for(let i=0;i<5;i++) years.add(new Date().getFullYear()-i);
+  [...businessData(state.sales),...businessData(state.expenses)].forEach(row=>{const y=Number(String(row.date||'').slice(0,4));if(y)years.add(y)});
+  return [...years].sort((a,b)=>b-a);
+}
+function reportRowsForYear(year){
+  const y=String(year);
+  return [...Array(12)].map((_,i)=>{
+    const k=`${y}-${pad2(i+1)}`;
+    const m=reportMetricsForMonth(k);
+    return {k,rev:m.revenue,gross:m.gross,exp:m.exp,net:m.net};
+  });
 }
 
 function renderReports(){
   if(!can('reports')) return accessDenied('Laporan');
-  const m=metrics();
-  const months=[...Array(6)].map((_,i)=>{const d=new Date();d.setMonth(d.getMonth()-(5-i));return d.toISOString().slice(0,7)});
-  const rows=months.map(k=>{const s=m.sales.filter(x=>monthKey(x.date)===k), e=m.expenses.filter(x=>monthKey(x.date)===k);const rev=s.reduce((a,x)=>a+Number(x.total),0), gross=s.reduce((a,x)=>a+Number(x.gross_profit),0), exp=e.reduce((a,x)=>a+Number(x.amount),0);return {k,rev,gross,exp,net:gross-exp};});
-  return `<div class="toolbar"><div class="toolbar-left"><span class="muted">Laporan manajemen</span></div><div class="toolbar-right"><button class="ghost" data-action="export-all-csv">Export Semua CSV</button></div></div><div class="report-grid">
-    <div class="panel"><div class="panel-title"><h3>Laba Rugi Bulan Ini</h3><span>${new Date().toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</span></div><div class="metric-list">
+  const selectedMonth=viewFilters.reports.month||localMonthKey();
+  const selectedYear=String(viewFilters.reports.year||selectedMonth.slice(0,4)||localYear());
+  const m=reportMetricsForMonth(selectedMonth);
+  const rows=reportRowsForYear(selectedYear);
+  const years=reportYearOptions();
+  return `<div class="report-period-bar">
+    <div class="report-period-copy"><strong>Periode Laporan</strong><span>Laba rugi dapat diganti per bulan. Tren menampilkan Januari–Desember berdasarkan tahun pilihan.</span></div>
+    <div class="report-period-controls">
+      <label class="period-field"><span>Bulan laporan</span><input id="reportMonthFilter" type="month" value="${escapeAttr(selectedMonth)}"></label>
+      <label class="period-field"><span>Tahun tren</span><select id="reportYearFilter">${years.map(y=>`<option value="${y}" ${String(y)===selectedYear?'selected':''}>${y}</option>`).join('')}</select></label>
+    </div>
+  </div>
+  <div class="toolbar report-actions"><div class="toolbar-left"><span class="muted">Laporan manajemen · ${escapeHtml(monthLabel(selectedMonth))}</span></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-report-year">Export Tren 12 Bulan</button>':''}<button class="ghost" data-action="export-all-csv">Export Semua CSV</button></div></div>
+  <div class="report-grid">
+    <div class="panel"><div class="panel-title"><h3>Laba Rugi</h3><span>${escapeHtml(monthLabel(selectedMonth))}</span></div><div class="metric-list">
       ${metricRow('Penjualan Neto',m.revenue)}${metricRow('HPP',m.hpp)}${metricRow('Laba Kotor',m.gross)}${metricRow('Biaya Operasional',m.exp)}
       <div class="metric-row total"><span>Laba Bersih</span><strong>${rupiah(m.net)}</strong></div>
     </div></div>
-    <div class="panel"><div class="panel-title"><h3>Ringkasan Bisnis</h3><span>Current</span></div><div class="metric-list">
-      ${metricRow('Piutang',m.receivable)}${metricRow('Nilai Persediaan',m.stockValue)}${metricRow('Produk perlu restock',m.lowStock,false)}${metricRow('Margin bersih',(m.margin*100).toFixed(1)+'%',false)}
-      <div class="form-note">Versi V1 fokus laporan manajemen. Modul pembelian, hutang, kas/bank multi-account dan pajak masuk fase berikutnya.</div>
+    <div class="panel"><div class="panel-title"><h3>Ringkasan Periode</h3><span>${escapeHtml(monthLabel(selectedMonth))}</span></div><div class="metric-list">
+      ${metricRow('Jumlah transaksi',num(m.sales.length),false)}${metricRow('Rata-rata transaksi',m.avgSale)}${metricRow('Piutang dari transaksi periode',m.receivable)}${metricRow('Margin bersih',(m.margin*100).toFixed(1)+'%',false)}
+      <div class="form-note">Semua angka pada panel laporan mengikuti bulan yang dipilih. Tren tahunan di bawah selalu menampilkan Januari sampai Desember.</div>
     </div></div>
   </div>
-  <div class="table-card"><div class="table-head"><h3>Tren 6 Bulan</h3></div><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Omzet</th><th>Laba Kotor</th><th>Biaya</th><th>Laba Bersih</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(r.k+'-01T00:00:00').toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</td><td class="money">${rupiah(r.rev)}</td><td class="money">${rupiah(r.gross)}</td><td class="money">${rupiah(r.exp)}</td><td class="money">${rupiah(r.net)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  <div class="table-card"><div class="table-head"><h3>Tren 12 Bulan · ${escapeHtml(selectedYear)}</h3><span class="muted">Januari – Desember</span></div><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Omzet</th><th>Laba Kotor</th><th>Biaya</th><th>Laba Bersih</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(Number(r.k.slice(0,4)),Number(r.k.slice(5,7))-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</td><td class="money">${rupiah(r.rev)}</td><td class="money">${rupiah(r.gross)}</td><td class="money">${rupiah(r.exp)}</td><td class="money">${rupiah(r.net)}</td></tr>`).join('')}</tbody></table></div></div>`;
 }
 function metricRow(label,value,isMoney=true){return `<div class="metric-row"><span>${label}</span><strong>${isMoney?rupiah(value):value}</strong></div>`}
 
@@ -404,7 +514,7 @@ function renderSettingsPage(){
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
     ${((can('export')&&activeBusiness())||state.mode==='local')?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.7.2 Permission/Deploy Fix</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.8 Period & Annual Reports</span></div></div>
   </div>`;
 }
 
@@ -424,6 +534,14 @@ function bindPageActions(){
   const ss=$('#salesSearch'); if(ss) ss.oninput=()=>filterRows(ss,'table tbody tr');
   const ps=$('#productSearch'); if(ps) ps.oninput=()=>filterRows(ps,'table tbody tr');
   const es=$('#expenseSearch'); if(es) es.oninput=()=>filterRows(es,'table tbody tr');
+  const sm=$('#salesMonthFilter'); if(sm) sm.onchange=()=>updatePeriodMonth('sales',sm.value);
+  const sf=$('#salesFromFilter'); if(sf) sf.onchange=()=>updatePeriodDate('sales','from',sf.value);
+  const st=$('#salesToFilter'); if(st) st.onchange=()=>updatePeriodDate('sales','to',st.value);
+  const em=$('#expenseMonthFilter'); if(em) em.onchange=()=>updatePeriodMonth('expenses',em.value);
+  const ef=$('#expenseFromFilter'); if(ef) ef.onchange=()=>updatePeriodDate('expenses','from',ef.value);
+  const et=$('#expenseToFilter'); if(et) et.onchange=()=>updatePeriodDate('expenses','to',et.value);
+  const rm=$('#reportMonthFilter'); if(rm) rm.onchange=()=>{viewFilters.reports.month=rm.value||localMonthKey();viewFilters.reports.year=(viewFilters.reports.month||localMonthKey()).slice(0,4);render();};
+  const ry=$('#reportYearFilter'); if(ry) ry.onchange=()=>{viewFilters.reports.year=ry.value||localYear();render();};
   bindAuditFilters();
   const ownerInviteForm=$('#systemOwnerInviteForm');
   if(ownerInviteForm) ownerInviteForm.onsubmit=async e=>{e.preventDefault();const f=new FormData(ownerInviteForm);await withSubmitBusy(ownerInviteForm,async()=>{try{const result=await invokeAccountAdmin('invite-owner',{email:f.get('email'),redirect_to:recoveryRedirectUrl()});ownerInviteForm.reset();await loadManagedOwners();render();toast(result?.message||'Undangan Owner diproses','success',6500)}catch(err){toast(err.message,'error');throw err}})};
@@ -432,6 +550,8 @@ function filterRows(input,selector){ const q=input.value.toLowerCase(); $$(selec
 
 function handleAction(action,el){
   const id=el?.dataset?.id;
+  if(action==='reset-sales-period') return resetPeriodFilter('sales');
+  if(action==='reset-expenses-period') return resetPeriodFilter('expenses');
   if(action==='add-sale') return requirePermission('sales_create')&&openSaleModal();
   if(action==='edit-sale') return requirePermission('sales_edit')&&openSaleModal(id);
   if(action==='print-sale') return requirePermission('print')&&openPrintDocumentModal(id);
@@ -464,9 +584,10 @@ function handleAction(action,el){
   if(action==='open-profit-summary') return openProfitSummaryModal();
   if(action==='open-audit-detail') return openAuditDetailModal(id);
   if(action==='refresh-audit') return refreshAuditLog();
-  if(action==='export-sales') return requirePermission('export')&&exportCsv('penjualan',businessData(state.sales));
+  if(action==='export-sales') return requirePermission('export')&&exportCsv('penjualan-'+slug(periodLabel(viewFilters.sales)),periodFilterRows(businessData(state.sales),viewFilters.sales));
   if(action==='export-products') return requirePermission('export')&&exportCsv('produk',businessData(state.products));
-  if(action==='export-expenses') return requirePermission('export')&&exportCsv('biaya',businessData(state.expenses));
+  if(action==='export-expenses') return requirePermission('export')&&exportCsv('biaya-'+slug(periodLabel(viewFilters.expenses)),periodFilterRows(businessData(state.expenses),viewFilters.expenses));
+  if(action==='export-report-year') return requirePermission('export')&&exportReportYearCsv();
   if(action==='export-all-csv') return exportAllCsv();
   if(action==='add-member') return openMemberModal();
   if(action==='edit-member') return openMemberModal({user_id:id,email:el.dataset.email,role:el.dataset.role});
@@ -1269,9 +1390,20 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.7.2',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.8',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
+function exportReportYearCsv(){
+  const year=String(viewFilters.reports.year||localYear());
+  const rows=reportRowsForYear(year).map(r=>({
+    bulan:monthLabel(r.k),
+    omzet:r.rev,
+    laba_kotor:r.gross,
+    biaya:r.exp,
+    laba_bersih:r.net
+  }));
+  exportCsv(`laporan-12-bulan-${year}`,rows);
+}
 function exportAllCsv(){if(!can('export')&&state.mode!=='local'){toast('Role ini tidak diizinkan export','error');return}exportCsv('produk',businessData(state.products));setTimeout(()=>exportCsv('penjualan',businessData(state.sales)),250);setTimeout(()=>exportCsv('item-penjualan',businessData(state.saleItems||[])),500);setTimeout(()=>exportCsv('pembayaran',businessData(state.payments||[])),750);setTimeout(()=>exportCsv('biaya',businessData(state.expenses)),1000)}
 function importJson(){const i=document.createElement('input');i.type='file';i.accept='application/json';i.onchange=()=>{const f=i.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{try{const data=JSON.parse(r.result);state={...defaultState(),...data,mode:'local',session:null,saleItems:Array.isArray(data.saleItems)?data.saleItems:[]};(state.sales||[]).forEach(sale=>{if(state.saleItems.some(x=>x.sale_id===sale.id&&x.business_id===sale.business_id))return;const p=(state.products||[]).find(x=>x.id===sale.product_id)||{};state.saleItems.push({id:uid(),business_id:sale.business_id,sale_id:sale.id,line_no:1,product_id:sale.product_id,product_name:sale.product_name||p.name||'Produk',unit:p.unit||'pcs',qty:Number(sale.qty||0),unit_price:Number(sale.unit_price||0),unit_cost:Number(sale.unit_cost||0),line_total:Number(sale.qty||0)*Number(sale.unit_price||0),line_gross_profit:Number(sale.qty||0)*(Number(sale.unit_price||0)-Number(sale.unit_cost||0))})});persist();render();toast('Backup diimport','success')}catch{toast('File backup tidak valid','error')}};r.readAsText(f)};i.click()}
 function slug(s=''){return String(s).toLowerCase().trim().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'bisnis'}

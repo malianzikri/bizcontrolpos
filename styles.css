@@ -241,3 +241,35 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
   .admin-contact{min-height:42px}
 }
 @media(max-width:760px){.top-actions #accountSettingsBtn:not(.hidden){display:inline-flex!important;align-items:center;justify-content:center;padding-inline:10px}}
+
+
+/* V1.8.8 — period filters + annual reports */
+.period-filter,.report-period-bar{background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:var(--shadow);margin-bottom:14px;padding:14px 16px}
+.period-filter-head,.report-period-bar{display:flex;align-items:center;justify-content:space-between;gap:14px}
+.period-filter-head>div,.report-period-copy{display:grid;gap:3px;min-width:0}
+.period-filter-head strong,.report-period-copy strong{font-size:12px;color:var(--navy)}
+.period-filter-head span,.report-period-copy span{font-size:10px;color:var(--muted);line-height:1.45}
+.period-reset{border:0;background:#f4f6f8;color:var(--muted);padding:7px 9px;border-radius:8px;font-size:10px;font-weight:800}
+.period-reset:hover{background:#e9eef1;color:var(--text)}
+.period-filter-controls,.report-period-controls{display:flex;align-items:end;gap:10px;margin-top:12px;flex-wrap:wrap}
+.report-period-bar{align-items:center}.report-period-controls{margin-top:0;flex-wrap:nowrap}
+.period-field{display:grid;gap:5px;min-width:150px}
+.period-field>span{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:850}
+.period-field input,.period-field select{width:100%;min-width:0;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text);padding:9px 10px;min-height:39px}
+.period-field input:focus,.period-field select:focus{outline:2px solid #cce7dc;border-color:var(--green)}
+.period-month{min-width:170px}.period-separator{font-size:9px;color:#98a2b3;padding:0 2px 11px;text-transform:uppercase;font-weight:800}
+.report-actions{margin-top:0}.report-actions .toolbar-right{flex-wrap:wrap}
+@media(max-width:760px){
+  .period-filter,.report-period-bar{padding:12px;margin-bottom:12px;box-shadow:0 5px 18px rgba(16,24,40,.05)}
+  .period-filter-head{align-items:flex-start}.period-filter-head>div{padding-top:2px}
+  .period-filter-controls{display:grid;grid-template-columns:1fr 1fr;gap:9px;width:100%}
+  .period-field{min-width:0;width:100%}.period-month{grid-column:1/-1}.period-separator{display:none}
+  .period-field input,.period-field select{min-height:43px;font-size:13px}
+  .report-period-bar{display:block}.report-period-controls{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px;width:100%}
+  .report-actions .toolbar-right{display:grid;grid-template-columns:1fr 1fr;gap:8px}.report-actions .toolbar-right button{width:100%;min-height:42px}
+}
+@media(max-width:420px){
+  .period-filter-controls,.report-period-controls{grid-template-columns:1fr}.period-month{grid-column:auto}
+  .report-actions .toolbar-right{grid-template-columns:1fr}
+  .table-card>.table-head{align-items:flex-start}.table-card>.table-head .muted{max-width:48%;line-height:1.35}
+}

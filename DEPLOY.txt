@@ -1,0 +1,8 @@
+BizControl V1.8.8 UPDATE ONLY
+
+1. Backup repo/source production.
+2. Replace app.js, styles.css, index.html, sw.js dengan file pada folder ini.
+3. JANGAN ubah runtime-config.js production.
+4. Tidak perlu SQL migration / Edge Function update.
+5. Push GitHub → tunggu Vercel Ready.
+6. Hard refresh. Sidebar harus menampilkan ONLINE V1.8.8.

@@ -1,0 +1,30 @@
+BizControl Online V1.8.8 — QA REPORT
+
+STATIC / SYNTAX
+PASS - app.js syntax via node --check
+PASS - version label ONLINE V1.8.8
+PASS - Service Worker cache bumped to V1.8.8
+PASS - No SQL migration required
+
+FUNCTIONAL BROWSER QA
+PASS - Kasir shows Bulan, Dari tanggal, Sampai tanggal
+PASS - Kasir date range filters demo rows correctly
+PASS - Reset Kasir returns to Semua tanggal
+PASS - Biaya shows period filters and month selection works
+PASS - Laporan has month selector and year selector
+PASS - Trend table always renders 12 rows
+PASS - Trend starts Januari and ends Desember
+PASS - Previous year is selectable
+PASS - Year title updates after selection
+
+MOBILE QA — 390px viewport
+PASS - Kasir has no horizontal page overflow
+PASS - Report has no horizontal page overflow
+PASS - Report 12-month rows convert to responsive cards
+PASS - Period controls remain visible and usable
+
+SECURITY / DATA MODEL
+PASS - No RLS changes
+PASS - No Edge Function changes
+PASS - No service_role/frontend key changes
+PASS - Existing V1.8.7.2 security hardening retained
