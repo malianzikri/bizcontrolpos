@@ -215,3 +215,16 @@ Migration ini mengubah model transaksi dan **wajib** dijalankan sebelum frontend
 7. Test: Demo mobile → Masuk, Chat Admin, undang Owner, login Owner pertama, ganti password sendiri, reset karyawan oleh Owner, reset Owner oleh Admin Sistem, lalu pastikan user biasa tidak dapat membuat bisnis melalui RPC.
 
 Lihat `V1.8.7_SETUP.md` untuk langkah deployment detail.
+
+
+## V1.8.8 Period & Annual Reports
+- Kasir: filter Bulan atau rentang Dari tanggal–Sampai tanggal.
+- Export Penjualan CSV mengikuti periode filter.
+- Biaya: filter Bulan atau rentang Dari tanggal–Sampai tanggal.
+- Total dan Export Biaya CSV mengikuti periode filter.
+- Laporan Laba Rugi dapat diganti per bulan.
+- Ringkasan Periode mengikuti bulan pilihan.
+- Tren laporan menjadi 12 bulan Januari–Desember dan tahun dapat diganti.
+- Export Tren 12 Bulan CSV.
+- Layout filter dan tabel sudah disesuaikan untuk mobile.
+- Tidak membutuhkan migration SQL baru.
