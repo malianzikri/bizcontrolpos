@@ -1,0 +1,35 @@
+// -------- Boot --------
+(async()=>{
+  // Remove legacy user-editable cloud configuration from older builds.
+  localStorage.removeItem('bc_cloud_config');
+  state.cloudConfig=loadCloudConfig();state.session=loadSession();setAuthMode('login');
+
+  // Auth recovery / invite tetap diprioritaskan.
+  try{
+    if(await loadRecoverySessionFromUrl())return;
+  }catch(err){
+    clearSession();
+    setAuthMode('login');
+    showAuth();
+    toast(err.message,'error',7000);
+    return;
+  }
+
+  // URL dari landing: ?demo=1
+  // Jangan mengganggu user existing yang sudah login Cloud.
+  const demoRequested = new URLSearchParams(location.search).get('demo') === '1';
+
+  if(demoRequested && !(state.cloudConfig && state.session)){
+    enterDemoSandbox();
+    return;
+  }
+
+  if(state.cloudConfig&&state.session){
+    state.mode='cloud';
+    cloudBootstrap();
+  }else{
+    state.mode='local';
+    setAuthMode('login');
+    showAuth();
+  }
+})();

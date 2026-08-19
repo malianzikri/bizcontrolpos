@@ -1462,14 +1462,6 @@ document.addEventListener('visibilitychange',async()=>{if(document.visibilitySta
   localStorage.removeItem('bc_cloud_config');
   state.cloudConfig=loadCloudConfig();state.session=loadSession();setAuthMode('login');
   try{if(await loadRecoverySessionFromUrl())return;}catch(err){clearSession();setAuthMode('login');showAuth();toast(err.message,'error',7000);return;}
-  // Direct Demo entry dari landing page.
-  // Visitor baru tanpa session Cloud + ?demo=1 langsung masuk Demo.
-  // User existing yang masih login tetap masuk akun Cloud.
-  const demoRequested = new URLSearchParams(location.search).get('demo') === '1';
-  if(demoRequested && !(state.cloudConfig && state.session)){
-    enterDemoSandbox();
-    return;
-  }
   if(state.cloudConfig&&state.session){state.mode='cloud';cloudBootstrap();}
   else {state.mode='local';setAuthMode('login');showAuth();}
 })();
