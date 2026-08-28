@@ -1,0 +1,14 @@
+BIZCONTROL V1.8.8 CSP / META PIXEL PATCH QA
+==============================================
+PASS - index script-src allows connect.facebook.net
+PASS - index img-src allows www.facebook.com
+PASS - index connect-src preserves Supabase + Cloudflare
+PASS - index connect-src allows Meta
+PASS - vercel CSP allows connect.facebook.net
+PASS - vercel CSP allows www.facebook.com
+PASS - vercel CSP still has frame-ancestors none
+PASS - demo-sales-layer.js preserved
+PASS - demo-sales-config.js preserved
+PASS - app.js preserved
+
+OVERALL: PASS

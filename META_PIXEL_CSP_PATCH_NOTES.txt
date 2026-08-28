@@ -1,0 +1,66 @@
+BIZCONTROL V1.8.8 — META PIXEL CSP PATCH
+=======================================
+
+Masalah yang ditemukan
+-----------------------
+Browser memblokir:
+https://connect.facebook.net/en_US/fbevents.js
+
+karena CSP hanya mengizinkan:
+script-src 'self' https://challenges.cloudflare.com
+
+CSP ternyata dipasang di DUA tempat:
+1. index.html (meta Content-Security-Policy)
+2. vercel.json (HTTP response header)
+
+Keduanya sudah dipatch.
+
+Domain Meta yang ditambahkan
+----------------------------
+script-src:
+- https://connect.facebook.net
+
+connect-src:
+- https://connect.facebook.net
+- https://www.facebook.com
+
+img-src:
+- https://www.facebook.com
+
+Yang tetap dipertahankan
+------------------------
+- Supabase HTTPS/WSS
+- Cloudflare Turnstile
+- frame-ancestors 'none'
+- object-src 'none'
+- HSTS
+- X-Frame-Options
+- Referrer Policy
+- Permissions Policy
+- login/auth
+- app.js
+- POS/kasir
+- database
+- demo-sales-layer.js
+- demo-sales-config.js
+
+Cara deploy
+-----------
+Upload/push project hasil patch ini sebagai pengganti source V1.8.8 saat ini.
+
+Setelah Vercel selesai:
+1. Gunakan Incognito baru.
+2. Buka POS dengan ?demo=1
+3. DevTools Console harus TIDAK lagi menampilkan error CSP untuk:
+   connect.facebook.net/en_US/fbevents.js
+4. Di Events Manager -> Uji Peristiwa, cek:
+   POSDemoStart
+   DemoGuideOpened
+   DemoGuideStart
+   DemoSaleCreated
+   DemoGuideCompleted
+   DemoPurchaseIntent
+
+Jika browser masih memakai service worker/cache lama:
+- hard reload sekali, atau
+- buka Incognito baru.
