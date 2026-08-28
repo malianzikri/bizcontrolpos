@@ -1,0 +1,31 @@
+BIZCONTROL V1.8.8 — META PIXEL CSP PATCH V2
+===========================================
+
+Tambahan dari patch pertama
+---------------------------
+Meta Pixel script sudah bisa dimuat, tetapi request event berikutnya diblokir CSP
+karena Meta menggunakan endpoint tambahan yang berada pada:
+- https://*.on.aws
+- https://*.run.app
+
+V2 hanya menambahkan dua wildcard tersebut ke CONNECT-SRC.
+
+Yang TIDAK dilonggarkan:
+- script-src tetap hanya self + Cloudflare + connect.facebook.net
+- frame-src tetap Cloudflare
+- object-src tetap none
+- frame-ancestors tetap none
+- Supabase tetap sama
+- login / app.js / POS / database tidak diubah
+
+Setelah deploy:
+1. Incognito baru
+2. Buka POS ?demo=1
+3. Console: tidak boleh ada lagi error CSP untuk on.aws / run.app
+4. Events Manager > Uji Peristiwa
+5. Tes:
+   POSDemoStart
+   DemoGuideOpened
+   DemoGuideStart
+   DemoSaleCreated
+   DemoGuideCompleted

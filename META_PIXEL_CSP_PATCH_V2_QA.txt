@@ -1,0 +1,11 @@
+BIZCONTROL V1.8.8 META PIXEL CSP PATCH V2 QA
+===============================================
+PASS - index allows *.on.aws in connect-src
+PASS - index allows *.run.app in connect-src
+PASS - index keeps Meta script restriction
+PASS - index keeps Supabase
+PASS - vercel allows *.on.aws in connect-src
+PASS - vercel allows *.run.app in connect-src
+PASS - vercel keeps frame-ancestors none
+
+OVERALL: PASS
