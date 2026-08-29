@@ -1,0 +1,13 @@
+BIZCONTROL DEMO CONVERSION V3 QA
+=================================
+PASS - JS syntax
+PASS - Conversion screen function
+PASS - Auto open after completed
+PASS - Monthly checkout configured
+PASS - InitiateCheckout standard tracking
+PASS - Lifetime fallback supported
+PASS - Support WA 0811
+PASS - Existing POSDemoStart preserved
+PASS - Existing DemoGuideCompleted preserved
+
+OVERALL: PASS

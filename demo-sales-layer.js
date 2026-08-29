@@ -5,12 +5,18 @@
   const VERSION = '1.0.0';
   const PIXEL_ID = '1081611444299321';
   const DEFAULT_LANDING = 'https://bizcontrol-landing.vercel.app/?utm_source=pos_demo&utm_medium=product&utm_campaign=demo_to_sales#harga';
+  const DEFAULT_MONTHLY_CHECKOUT = 'https://lynk.id/noboncosiklan/rdkp8396k293/checkout';
+  const DEFAULT_SUPPORT_WA = 'https://wa.me/628117199210?text=Halo%20Admin%20BizControl%2C%20saya%20mau%20tanya%20tentang%20BizControl%20Online.';
   const GUIDE_KEY = 'bc_demo_conversion_guide_v1';
   const SESSION_TRACK_KEY = 'bc_demo_pos_started_v1';
 
   const getCfg = () => Object.assign({
     landingUrl: DEFAULT_LANDING,
+    monthlyCheckoutUrl: DEFAULT_MONTHLY_CHECKOUT,
+    lifetimeCheckoutUrl: '',
+    supportWhatsAppUrl: DEFAULT_SUPPORT_WA,
     monthlyLabel: 'Rp79.000/bulan',
+    lifetimeLabel: 'Rp699.000 sekali bayar',
     pixelId: PIXEL_ID
   }, window.BIZCONTROL_DEMO_SALES || {});
 
@@ -55,6 +61,13 @@
     }catch(_){}
   }
 
+  function trackStandard(name, params){
+    try{
+      loadPixel();
+      if(typeof window.fbq === 'function') window.fbq('track', name, params || {});
+    }catch(_){}
+  }
+
   function trackDemoStartOnce(){
     if(!isDemo()) return;
     if(sessionStorage.getItem(SESSION_TRACK_KEY)) return;
@@ -62,10 +75,136 @@
     trackCustom('POSDemoStart', {version:VERSION});
   }
 
-  function goLanding(source){
+  function closeConversion(){
+    document.querySelector('#bcDemoConversionModal')?.remove();
+  }
+
+  function conversionHTML(){
     const cfg = getCfg();
-    trackCustom('DemoPurchaseIntent', {cta_source:source || 'unknown', price_plan:'monthly_79000'});
-    window.location.href = cfg.landingUrl || DEFAULT_LANDING;
+    const lifetimeDirect = Boolean(String(cfg.lifetimeCheckoutUrl || '').trim());
+    return `
+      <div class="bc-demo-conversion-card" role="dialog" aria-modal="true" aria-labelledby="bcDemoConversionTitle">
+        <button type="button" class="bc-demo-conversion-close" aria-label="Tutup" data-bc-demo-action="conversion-close">×</button>
+
+        <div class="bc-demo-conversion-success">✓ DEMO SELESAI</div>
+        <h2 id="bcDemoConversionTitle">Cocok dengan alurnya? Pakai untuk bisnis kamu.</h2>
+        <p class="bc-demo-conversion-lead">
+          Kamu baru mencoba hubungan transaksi, stok, dan laporan di BizControl.
+          Pilih paket yang paling nyaman — kalau masih ragu, Admin siap bantu.
+        </p>
+
+        <div class="bc-demo-plan-grid">
+          <button type="button" class="bc-demo-plan bc-demo-plan-primary" data-bc-demo-action="checkout-monthly">
+            <span class="bc-demo-plan-badge">PALING RINGAN UNTUK MULAI</span>
+            <b>Rp79.000<span>/bulan</span></b>
+            <small>Maksimal 12 kali pembayaran</small>
+            <em>Setelah pembayaran ke-12, biaya langganan BizControl Rp0.</em>
+            <strong>Mulai Rp79.000 →</strong>
+          </button>
+
+          <button type="button" class="bc-demo-plan bc-demo-plan-lifetime" data-bc-demo-action="checkout-lifetime">
+            <span class="bc-demo-plan-badge">SEKALI BAYAR</span>
+            <b>Rp699.000</b>
+            <small>Langsung lunas</small>
+            <em>${lifetimeDirect ? 'Lanjut langsung ke checkout Lifetime.' : 'Lihat paket Lifetime di halaman harga.'}</em>
+            <strong>Lifetime Rp699.000 →</strong>
+          </button>
+        </div>
+
+        <div class="bc-demo-reassurance">
+          <span>✓ Aktivasi akun Owner dibantu</span>
+          <span>✓ Bisa dipakai dari HP & laptop</span>
+          <span>✓ Data tersimpan di Cloud</span>
+        </div>
+
+        <div class="bc-demo-support-row">
+          <span>Masih ada pertanyaan sebelum beli?</span>
+          <button type="button" data-bc-demo-action="support-wa">Tanya Admin BizControl</button>
+        </div>
+      </div>`;
+  }
+
+  function openConversion(source){
+    if(!isDemo()) return;
+    closeGuide();
+    document.querySelector('#bcDemoCoach')?.remove();
+    closeConversion();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'bcDemoConversionModal';
+    overlay.className = 'bc-demo-conversion-modal';
+    overlay.innerHTML = conversionHTML();
+    document.body.appendChild(overlay);
+
+    trackCustom('PricingView', {
+      source:'pos_demo',
+      cta_source:source || 'unknown'
+    });
+    trackCustom('DemoConversionScreenViewed', {
+      cta_source:source || 'unknown'
+    });
+  }
+
+  function choosePlan(plan, source){
+    const cfg = getCfg();
+    const isLifetime = plan === 'lifetime';
+    const value = isLifetime ? 699000 : 79000;
+    const contentId = isLifetime ? 'onlineLifetime' : 'onlineMonthly';
+    const contentName = isLifetime
+      ? 'BizControl Online - Sekali Bayar'
+      : 'BizControl Online - Bulanan';
+
+    trackCustom('DemoPurchaseIntent', {
+      cta_source:source || 'conversion_screen',
+      price_plan:isLifetime ? 'lifetime_699000' : 'monthly_79000',
+      value:value,
+      currency:'IDR'
+    });
+
+    let destination = '';
+    let isDirectCheckout = false;
+
+    if(isLifetime){
+      destination = String(cfg.lifetimeCheckoutUrl || '').trim();
+      if(destination){
+        isDirectCheckout = true;
+      }else{
+        destination = cfg.landingUrl || DEFAULT_LANDING;
+      }
+    }else{
+      destination = String(cfg.monthlyCheckoutUrl || '').trim() || DEFAULT_MONTHLY_CHECKOUT;
+      isDirectCheckout = true;
+    }
+
+    if(isDirectCheckout){
+      trackStandard('InitiateCheckout', {
+        content_ids:[contentId],
+        content_name:contentName,
+        content_category:'BizControl Online',
+        content_type:'product',
+        value:value,
+        currency:'IDR',
+        num_items:1
+      });
+      trackCustom('DemoCheckoutSelected', {
+        plan:isLifetime ? 'lifetime' : 'monthly',
+        value:value,
+        currency:'IDR'
+      });
+    }else{
+      trackCustom('DemoLifetimePricingFallback', {
+        value:699000,
+        currency:'IDR'
+      });
+    }
+
+    window.location.href = destination;
+  }
+
+  function openSupport(){
+    const cfg = getCfg();
+    trackCustom('DemoSupportClick', {source:'conversion_screen'});
+    window.location.href = cfg.supportWhatsAppUrl || DEFAULT_SUPPORT_WA;
   }
 
   function nav(page){
@@ -245,13 +384,14 @@
         'next-report'
       );
     }else if(step === 'report'){
+      trackCustom('DemoGuideCompleted');
       coach(
-        'Kamu sudah melihat alur utamanya.',
-        'Kalau alurnya cocok untuk bisnis kamu, aktifkan BizControl Online mulai Rp79.000/bulan.',
-        'Aktifkan BizControl →',
+        'Demo selesai.',
+        'Kamu sudah melihat bagaimana transaksi, stok, dan laporan saling terhubung. Sekarang pilih paket kalau ingin memakai BizControl untuk bisnis kamu.',
+        'Lihat Paket BizControl →',
         'buy-complete'
       );
-      trackCustom('DemoGuideCompleted');
+      setTimeout(()=>openConversion('guide_completed'), 450);
     }
   }
 
@@ -273,7 +413,11 @@
       if(a === 'guide') openGuide(true);
       else if(a === 'skip'){ saveGuide({dismissed:true}); closeGuide(); }
       else if(a === 'start-sale'){ saveGuide({dismissed:true}); closeGuide(); trackCustom('DemoGuideStart'); openSale(); }
-      else if(a === 'buy' || a === 'buy-top' || a === 'buy-mobile' || a === 'buy-complete') goLanding(a);
+      else if(a === 'buy' || a === 'buy-top' || a === 'buy-mobile' || a === 'buy-complete') openConversion(a);
+      else if(a === 'checkout-monthly') choosePlan('monthly', a);
+      else if(a === 'checkout-lifetime') choosePlan('lifetime', a);
+      else if(a === 'support-wa') openSupport();
+      else if(a === 'conversion-close') closeConversion();
       else if(a === 'next-stock'){ document.querySelector('#bcDemoCoach')?.remove(); nav('products'); markStep('stock'); }
       else if(a === 'next-report'){ document.querySelector('#bcDemoCoach')?.remove(); nav('reports'); markStep('report'); }
       else if(a === 'coach-close') document.querySelector('#bcDemoCoach')?.remove();
@@ -335,6 +479,7 @@
       if(isDemo()) trackDemoStartOnce();
       else{
         closeGuide();
+        closeConversion();
         document.querySelector('#bcDemoCoach')?.remove();
       }
     }, 1200);
@@ -346,6 +491,7 @@
   window.BizControlDemoConversion = {
     version: VERSION,
     openGuide: ()=>openGuide(true),
+    openConversion: ()=>openConversion('manual_test'),
     resetGuide: ()=>{
       localStorage.removeItem(GUIDE_KEY);
       sessionStorage.removeItem(SESSION_TRACK_KEY);

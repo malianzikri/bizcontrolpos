@@ -1,0 +1,77 @@
+BIZCONTROL POS V1.8.8 — DEMO CONVERSION SCREEN V3
+==================================================
+
+Tujuan
+------
+Mengubah akhir Demo menjadi direct-purchase-first:
+
+Demo selesai
+-> Rp79.000/bulan (direct checkout)
+-> Lifetime Rp699.000
+-> Tanya Admin sebagai opsi bantuan
+
+Bukan lagi:
+Demo -> wajib WhatsApp -> checkout.
+
+Perubahan UX
+------------
+1. Setelah DemoGuideCompleted, conversion screen muncul otomatis.
+2. Paket Rp79.000/bulan menjadi CTA utama.
+3. Paket Lifetime Rp699.000 tetap tersedia.
+4. WhatsApp diposisikan sebagai bantuan, bukan gerbang pembelian.
+5. Tombol Aktivasi yang ada di banner/top/mobile juga membuka conversion screen.
+
+Tracking
+--------
+Saat conversion screen tampil:
+- PricingView
+- DemoConversionScreenViewed
+
+Saat orang memilih paket:
+- DemoPurchaseIntent
+
+Untuk Monthly direct checkout:
+- InitiateCheckout (standard Meta event)
+- DemoCheckoutSelected
+
+Untuk Lifetime:
+- Jika lifetimeCheckoutUrl diisi -> InitiateCheckout + DemoCheckoutSelected
+- Jika belum diisi -> kembali ke landing #harga dan mencatat DemoLifetimePricingFallback
+
+Saat Tanya Admin:
+- DemoSupportClick
+
+PENTING — Lifetime checkout URL
+-------------------------------
+Direct checkout bulanan sudah diisi:
+https://lynk.id/noboncosiklan/rdkp8396k293/checkout
+
+URL direct Lifetime belum tersedia di source yang dipatch.
+Karena itu tombol Lifetime saat ini TETAP BERFUNGSI tetapi menuju section harga landing.
+Setelah kamu punya URL Lynk Lifetime, cukup isi:
+lifetimeCheckoutUrl: 'https://...'
+
+Tidak perlu ubah demo-sales-layer.js lagi.
+
+Cara deploy
+-----------
+Gunakan seluruh project ini sebagai source POS production seperti patch CSP V2 sebelumnya.
+Push ke GitHub / Vercel.
+
+QA
+--
+1. Incognito -> buka POS ?demo=1
+2. Selesaikan:
+   transaksi -> stok -> laporan
+3. Setelah laporan:
+   conversion screen harus muncul otomatis
+4. Klik Rp79.000:
+   harus membuka Lynk monthly checkout
+5. Events Manager harus menerima:
+   DemoGuideCompleted
+   PricingView
+   DemoConversionScreenViewed
+   DemoPurchaseIntent
+   InitiateCheckout
+6. Buka lagi demo dan klik Tanya Admin:
+   harus menuju WA 0811-7199-210
