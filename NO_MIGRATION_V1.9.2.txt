@@ -1,0 +1,1 @@
+V1.9.2 tidak membutuhkan migration SQL baru. Fitur Invoice A4 + Struk Thermal hanya mengubah UI/print layout. Jika migration-v1.9-purchasing.sql sudah pernah dijalankan, tidak perlu menjalankannya ulang.
