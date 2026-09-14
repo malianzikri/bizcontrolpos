@@ -16,7 +16,7 @@ const monthLabel = (key) => {
 const shortDateLabel = (value) => value ? new Date(value+'T00:00:00').toLocaleDateString('id-ID',{day:'2-digit',month:'short',year:'numeric'}) : '-';
 
 const viewFilters = {
-  sales:{month:'',from:'',to:''},
+  sales:{month:'',from:'',to:'',query:''},
   expenses:{month:'',from:'',to:''},
   reports:{month:localMonthKey(),year:localYear()},
   purchases:{month:'',from:'',to:''}
@@ -71,7 +71,8 @@ function updatePeriodMonth(kind,value){
 }
 function resetPeriodFilter(kind){
   if(!viewFilters[kind])return;
-  viewFilters[kind]={month:'',from:'',to:''};
+  const query=kind==='sales'?String(viewFilters[kind].query||''):'';
+  viewFilters[kind]={month:'',from:'',to:'',...(kind==='sales'?{query}: {})};
   render();
 }
 function periodFilterHtml(kind){
@@ -419,6 +420,35 @@ function renderSales(){
 `;
 }
 
+function salesReportSearchRows(rows,query=viewFilters.sales?.query){
+  const q=String(query||'').trim().toLowerCase();
+  if(!q)return rows;
+  return rows.filter(s=>{
+    const due=Math.max(Number(s.total||0)-Number(s.paid_amount||0),0);
+    const haystack=[
+      s.date,fmtDate(s.date),s.invoice_no,s.customer,s.customer_phone,s.customer_address,
+      saleItemsLabel(s),s.payment_method,s.notes,s.total,s.paid_amount,due,
+      due?'belum lunas':'lunas'
+    ].filter(v=>v!==null&&v!==undefined).join(' ').toLowerCase();
+    return haystack.includes(q);
+  });
+}
+function currentSalesReportRows(){
+  const rows=periodFilterRows(
+    businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))),
+    viewFilters.sales
+  );
+  return salesReportSearchRows(rows,viewFilters.sales.query);
+}
+function applySalesReportSearch(value){
+  viewFilters.sales.query=String(value||'').trim();
+  render();
+}
+function resetSalesReportSearch(){
+  viewFilters.sales.query='';
+  render();
+}
+
 function salesTable(sales,title){
   if(!sales.length) return `<div class="table-card"><div class="table-head"><h3>${escapeHtml(title)}</h3></div><div class="empty">Belum ada transaksi.</div></div>`;
   if(currentRole()==='warehouse'){
@@ -518,7 +548,7 @@ function renderReports(){
     </div></div>
   </div>
   <div class="table-card"><div class="table-head"><h3>Tren 12 Bulan · ${escapeHtml(selectedYear)}</h3><span class="muted">Januari – Desember</span></div><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Omzet</th><th>Laba Kotor</th><th>Biaya</th><th>Laba Bersih</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(Number(r.k.slice(0,4)),Number(r.k.slice(5,7))-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</td><td class="money">${rupiah(r.rev)}</td><td class="money">${rupiah(r.gross)}</td><td class="money">${rupiah(r.exp)}</td><td class="money">${rupiah(r.net)}</td></tr>`).join('')}</tbody></table></div></div>
-  <div class="report-sales-section"><div class="section-heading"><div><span>DETAIL TRANSAKSI</span><h3>Laporan Penjualan</h3></div></div><div class="toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk"></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>${periodFilterHtml('sales')}${salesTable(periodFilterRows(businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))),viewFilters.sales),`Penjualan · ${periodLabel(viewFilters.sales)}`)}</div>`;
+  <div class="report-sales-section"><div class="section-heading"><div><span>DETAIL TRANSAKSI</span><h3>Laporan Penjualan</h3></div></div><div class="toolbar report-sales-toolbar"><div class="toolbar-left report-search-group"><input class="search" id="salesSearch" type="search" value="${escapeAttr(viewFilters.sales.query||'')}" placeholder="Cari invoice / customer / produk / metode bayar"><button type="button" class="primary report-search-btn" data-action="apply-sales-search">Cari</button><button type="button" class="ghost report-search-reset" data-action="reset-sales-search">Reset</button></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-sales">Export Hasil Filter CSV</button>':''}</div></div>${viewFilters.sales.query?`<div class="report-search-active">Hasil pencarian untuk <b>“${escapeHtml(viewFilters.sales.query)}”</b> · digabung dengan filter periode di bawah.</div>`:''}${periodFilterHtml('sales')}${salesTable(currentSalesReportRows(),`Penjualan · ${periodLabel(viewFilters.sales)}`)}</div>`;
 }
 function metricRow(label,value,isMoney=true){return `<div class="metric-row"><span>${label}</span><strong>${isMoney?rupiah(value):value}</strong></div>`}
 
@@ -635,7 +665,7 @@ function renderSettingsPage(){
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
     ${((can('export')&&activeBusiness())||state.mode==='local')?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.9.2 Purchasing, POS & Dual Print</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.9.3 Purchasing, POS, Dual Print & Report Search</span></div></div>
   </div>`;
 }
 
@@ -652,7 +682,7 @@ function renderSystemAdmin(){
 function bindPageActions(){
   $$('[data-action]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); handleAction(el.dataset.action,el); });
   $$('[data-nav]').forEach(el=>el.onclick=()=>navigate(el.dataset.nav));
-  const ss=$('#salesSearch'); if(ss) ss.oninput=()=>filterRows(ss,'table tbody tr');
+  const ss=$('#salesSearch'); if(ss) ss.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();applySalesReportSearch(ss.value)}};
   const su=$('#supplierSearch'); if(su) su.oninput=()=>filterRows(su,'table tbody tr');
   const ps=$('#productSearch'); if(ps) ps.oninput=()=>filterRows(ps,'table tbody tr');
   const es=$('#expenseSearch'); if(es) es.oninput=()=>filterRows(es,'table tbody tr');
@@ -820,7 +850,9 @@ function handleAction(action,el){
   if(action==='open-profit-summary') return openProfitSummaryModal();
   if(action==='open-audit-detail') return openAuditDetailModal(id);
   if(action==='refresh-audit') return refreshAuditLog();
-  if(action==='export-sales') return requirePermission('export')&&exportCsv('penjualan-'+slug(periodLabel(viewFilters.sales)),periodFilterRows(businessData(state.sales),viewFilters.sales));
+  if(action==='apply-sales-search') return applySalesReportSearch($('#salesSearch')?.value||'');
+  if(action==='reset-sales-search') return resetSalesReportSearch();
+  if(action==='export-sales') return requirePermission('export')&&exportCsv('penjualan-'+slug(periodLabel(viewFilters.sales))+(viewFilters.sales.query?'-search-'+slug(viewFilters.sales.query):''),currentSalesReportRows());
   if(action==='export-products') return requirePermission('export')&&exportCsv('produk',businessData(state.products));
   if(action==='export-expenses') return requirePermission('export')&&exportCsv('biaya-'+slug(periodLabel(viewFilters.expenses)),periodFilterRows(businessData(state.expenses),viewFilters.expenses));
   if(action==='export-report-year') return requirePermission('export')&&exportReportYearCsv();
@@ -1656,7 +1688,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.9.1',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),suppliers:businessData(state.suppliers||[]),purchaseOrders:businessData(state.purchaseOrders||[]),purchaseOrderItems:businessData(state.purchaseOrderItems||[]),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.9.3',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),suppliers:businessData(state.suppliers||[]),purchaseOrders:businessData(state.purchaseOrders||[]),purchaseOrderItems:businessData(state.purchaseOrderItems||[]),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportReportYearCsv(){

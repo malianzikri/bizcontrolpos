@@ -1,0 +1,2 @@
+BizControl V1.9.3 tidak membutuhkan migration database baru.
+Cukup deploy file aplikasi setelah migration purchasing V1.9 yang sebelumnya diperlukan sudah terpasang.

@@ -298,3 +298,19 @@ button:disabled{cursor:not-allowed;opacity:.6}.is-loading{position:relative;poin
 /* BizControl Purchasing V1.9 */
 .purchase-tabs{display:flex;gap:8px;margin-bottom:14px;overflow:auto}.purchase-tabs button{border:1px solid var(--border);background:#fff;color:var(--muted);border-radius:999px;padding:9px 14px;font-size:10px;font-weight:850;white-space:nowrap}.purchase-tabs button.active{background:var(--navy);border-color:var(--navy);color:#fff}.purchase-hero{border:1px solid var(--border);background:linear-gradient(135deg,#f4fbf8,#fff);border-radius:16px;padding:18px;margin-bottom:14px}.purchase-hero span,.section-heading span{font-size:8px;letter-spacing:.12em;font-weight:900;color:var(--green)}.purchase-hero h3,.section-heading h3{margin:4px 0 5px;color:var(--navy)}.purchase-hero p{margin:0;color:var(--muted);font-size:11px}.po-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}.po-card{border:1px solid var(--border);background:#fff;border-radius:14px;padding:14px;display:grid;gap:12px;box-shadow:0 6px 16px rgba(16,24,40,.04)}.po-card span{font-size:9px;color:var(--green);font-weight:900}.po-card h3{margin:3px 0;font-size:14px}.po-card small{color:var(--muted);font-size:9px}.po-card>strong{font-size:16px;color:var(--navy)}.report-sales-section{margin-top:22px;padding-top:18px;border-top:1px solid var(--border)}.section-heading{margin-bottom:10px}
 @media(max-width:600px){.purchase-tabs{margin-left:-2px;margin-right:-2px}.po-grid{grid-template-columns:1fr}.purchase-hero{padding:14px}.report-sales-section{margin-top:16px;padding-top:14px}}
+
+/* V1.9.3 — Report table search */
+.report-search-group{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+.report-search-group .search{flex:1;min-width:260px}
+.report-search-btn,.report-search-reset{min-height:40px;white-space:nowrap}
+.report-search-active{margin:-4px 0 12px;padding:9px 12px;border:1px solid #d9e8e2;background:#f3f8f6;border-radius:10px;color:var(--muted);font-size:11px}
+.report-search-active b{color:var(--navy)}
+@media(max-width:760px){
+  .report-sales-toolbar .toolbar-left{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:7px}
+  .report-search-group .search{min-width:0;width:100%}
+  .report-search-btn,.report-search-reset{padding-inline:12px}
+}
+@media(max-width:430px){
+  .report-sales-toolbar .toolbar-left{grid-template-columns:minmax(0,1fr) auto}
+  .report-search-reset{grid-column:1/-1;width:100%}
+}
