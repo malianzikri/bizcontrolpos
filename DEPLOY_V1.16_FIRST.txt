@@ -1,0 +1,11 @@
+BIZCONTROL ONLINE V1.16 — CARA UPDATE
+
+1. BACKUP database Supabase terlebih dahulu.
+2. Jika migration V1.9 Purchasing belum pernah dijalankan, jalankan migration-v1.9-purchasing.sql terlebih dahulu.
+3. Pada database existing V1.9.x, jalankan SEKALI migration-v1.10-to-v1.16-pos-suite.sql.
+4. Setelah SQL sukses, copy/timpa semua file runtime dari ZIP ini ke root project BizControl di GitHub/Vercel.
+5. Deploy Vercel lalu hard refresh / clear PWA cache di device lama.
+6. Test Owner, Admin, Kasir, Finance, Gudang, Staff sesuai ROLE_MATRIX.md.
+
+JANGAN menjalankan ulang supabase-schema.sql pada database existing.
+JANGAN menjalankan migration di project Supabase yang salah. Pastikan Project URL sesuai deployment BizControl.
