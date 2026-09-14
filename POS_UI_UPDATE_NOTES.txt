@@ -1,0 +1,31 @@
+BizControl Online — POS Kasir UI Update
+Date: 2026-09-14
+
+Perubahan utama:
+- Menu Kasir sekarang menjadi layar Point of Sale (POS) utama, bukan daftar transaksi + modal input.
+- Produk tampil sebagai card grid dengan pencarian nama/SKU dan filter kategori.
+- Klik produk langsung memasukkan barang ke keranjang.
+- Keranjang mendukung tambah/kurang qty, input qty manual, dan hapus item.
+- Customer dan nomor HP tersedia langsung; alamat/catatan ada pada detail opsional.
+- Subtotal, diskon, total, metode pembayaran, nominal diterima/DP, dan kembalian dihitung langsung.
+- Metode: Cash, QRIS, Transfer, E-Wallet, Tempo.
+- Cash yang kurang ditolak dan diarahkan memakai Tempo untuk pembayaran sebagian.
+- Checkout memakai logic/database transaksi existing, termasuk multi-item, stock validation, audit/payment flow.
+- Tombol global + Penjualan dan shortcut dashboard sekarang menuju layar POS.
+- Riwayat transaksi, filter tanggal/bulan, export, pembayaran, cetak, edit, dan hapus tetap tersedia.
+- Edit transaksi existing tetap memakai modal multi-item detail agar fungsi administrasi lama tetap terjaga.
+- Mobile: grid produk 2 kolom, cart panel responsif, dan floating cart summary di atas bottom navigation.
+
+QA POS workstation: 23/23 PASS
+- Desktop POS render & interaction
+- Search produk
+- Multi-item + qty
+- Diskon
+- Cash & kembalian
+- Checkout + stock decrement + payment
+- Transaction history
+- Legacy edit modal
+- Mobile POS render
+- Mobile 2-column product grid
+- No horizontal overflow
+- No page errors

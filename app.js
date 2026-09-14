@@ -21,6 +21,23 @@ const viewFilters = {
   reports:{month:localMonthKey(),year:localYear()}
 };
 
+
+// POS draft lives only for the current browser session/page flow. It is not
+// persisted until checkout succeeds, so an unfinished transaction never
+// changes stock or financial reports.
+const posDraft = {
+  businessId:null,date:today(),customer:'',customer_phone:'',customer_address:'',notes:'',
+  cart:[],discount:0,payment_method:'Cash',paid_amount:'',product_query:'',category:'Semua',request_id:null
+};
+function resetPosDraft(){
+  Object.assign(posDraft,{businessId:state?.currentBusinessId||null,date:today(),customer:'',customer_phone:'',customer_address:'',notes:'',cart:[],discount:0,payment_method:'Cash',paid_amount:'',product_query:'',category:'Semua',request_id:newClientRequestId()});
+}
+function ensurePosDraft(){
+  if(posDraft.businessId!==state.currentBusinessId) resetPosDraft();
+  if(!posDraft.request_id) posDraft.request_id=newClientRequestId();
+  return posDraft;
+}
+
 function periodFilterRows(rows,filter){
   const f=filter||{};
   if(f.month) return rows.filter(row=>monthKey(row.date)===f.month);
@@ -246,7 +263,7 @@ function enhanceResponsiveTables(root=document){
 
 function render(){
   renderNav(); renderBusinessSelect(); renderSyncBadge();
-  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['TRANSAKSI','Kasir / Penjualan'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan'],systemAdmin:['PLATFORM CONTROL','Admin Sistem']};
+  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['POINT OF SALE','Kasir POS'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan'],systemAdmin:['PLATFORM CONTROL','Admin Sistem']};
   const activeMeta=meta[state.page]||meta.dashboard; $('#pageEyebrow').textContent=activeMeta[0]; $('#pageTitle').textContent=activeMeta[1];
   const pages={dashboard:renderDashboard,sales:renderSales,products:renderProducts,expenses:renderExpenses,reports:renderReports,team:renderTeam,audit:renderAuditLog,settings:renderSettingsPage,systemAdmin:renderSystemAdmin};
   $('#pageContent').innerHTML=pages[state.page]();
@@ -308,14 +325,99 @@ function renderDashboard(){
 }
 function kpiCard(label,value,foot,action){ return `<button type="button" class="kpi-card kpi-clickable" data-action="${action}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div><div class="kpi-foot">${foot}</div></button>`; }
 
+function posProducts(){ return businessData(state.products); }
+function posTotals(){
+  ensurePosDraft();
+  let subtotal=0,costTotal=0,totalQty=0;
+  posDraft.cart.forEach(line=>{
+    const p=state.products.find(x=>x.id===line.product_id&&x.business_id===state.currentBusinessId);
+    if(!p)return;
+    const qty=Math.max(0,Number(line.qty||0));
+    subtotal+=qty*Number(p.price||0);costTotal+=qty*Number(p.cost||0);totalQty+=qty;
+  });
+  const discount=Math.max(0,Number(posDraft.discount||0));
+  const total=Math.max(0,subtotal-discount);
+  return {subtotal,costTotal,totalQty,discount,total};
+}
+function posFilteredProducts(){
+  ensurePosDraft();
+  const q=String(posDraft.product_query||'').trim().toLowerCase();
+  return posProducts().filter(p=>{
+    const categoryOk=posDraft.category==='Semua'||p.category===posDraft.category;
+    const queryOk=!q||`${p.sku||''} ${p.name||''} ${p.category||''}`.toLowerCase().includes(q);
+    return categoryOk&&queryOk;
+  });
+}
+function posProductCardsHtml(){
+  const allowNegative=Boolean(activeBusiness()?.allow_negative_stock);
+  const filtered=posFilteredProducts();
+  if(!filtered.length)return `<div class="pos-product-empty"><strong>Produk tidak ditemukan</strong><span>Coba kata kunci atau kategori lain.</span></div>`;
+  return filtered.map(p=>{
+    const line=posDraft.cart.find(x=>x.product_id===p.id);const inCart=Number(line?.qty||0);
+    const service=p.category==='Jasa';const out=!service&&!allowNegative&&Number(p.stock||0)<=0;
+    const low=!service&&Number(p.stock||0)<=Number(p.min_stock||0);
+    const stockLabel=service?'Jasa':`Stok ${num(p.stock||0)} ${escapeHtml(p.unit||'')}`;
+    const initial=escapeHtml(String(p.name||'?').trim().slice(0,2).toUpperCase());
+    return `<button type="button" class="pos-product-card ${out?'is-out':''}" data-pos-add="${escapeAttr(p.id)}" ${out?'disabled':''}>
+      <span class="pos-product-avatar">${initial}</span>
+      <span class="pos-product-copy"><strong>${escapeHtml(p.name||'-')}</strong><small>${escapeHtml(p.sku||'-')} · ${escapeHtml(p.category||'Produk')}</small></span>
+      <span class="pos-product-price">${rupiah(p.price||0)}</span>
+      <span class="pos-stock ${low?'low':''}">${out?'Stok habis':stockLabel}</span>
+      ${inCart>0?`<span class="pos-in-cart">${num(inCart)} di keranjang</span>`:''}
+    </button>`;
+  }).join('');
+}
+function posCartRowsHtml(){
+  if(!posDraft.cart.length)return `<div class="pos-cart-empty"><div class="pos-cart-empty-icon">▣</div><strong>Keranjang masih kosong</strong><span>Pilih produk di sebelah kiri untuk mulai transaksi.</span></div>`;
+  return posDraft.cart.map(line=>{
+    const p=state.products.find(x=>x.id===line.product_id&&x.business_id===state.currentBusinessId);if(!p)return '';
+    const qty=Number(line.qty||0);const lineTotal=qty*Number(p.price||0);
+    return `<div class="pos-cart-line" data-pos-line="${escapeAttr(p.id)}">
+      <div class="pos-cart-product"><strong>${escapeHtml(p.name||'-')}</strong><small>${rupiah(p.price||0)} / ${escapeHtml(p.unit||'pcs')}</small></div>
+      <div class="pos-qty-stepper"><button type="button" data-pos-dec="${escapeAttr(p.id)}" aria-label="Kurangi ${escapeAttr(p.name||'produk')}">−</button><input type="number" min="0.01" step="0.01" value="${qty}" data-pos-qty="${escapeAttr(p.id)}" aria-label="Qty ${escapeAttr(p.name||'produk')}"><button type="button" data-pos-inc="${escapeAttr(p.id)}" aria-label="Tambah ${escapeAttr(p.name||'produk')}">+</button></div>
+      <strong class="pos-line-total">${rupiah(lineTotal)}</strong>
+      <button type="button" class="pos-line-remove" data-pos-remove="${escapeAttr(p.id)}" aria-label="Hapus ${escapeAttr(p.name||'produk')}">×</button>
+    </div>`;
+  }).join('');
+}
 function renderSales(){
   if(!can('sales_view')) return accessDenied('Kasir / Penjualan');
   const allSales=businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
   const sales=periodFilterRows(allSales,viewFilters.sales);
   const period=periodLabel(viewFilters.sales);
-  return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk" /></div><div class="toolbar-right">${can('sales_create')?'<button class="primary" data-action="add-sale">+ Penjualan Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>
-  ${periodFilterHtml('sales')}
-  ${salesTable(sales,`Penjualan · ${period}`)}`;
+  const history=`<div class="pos-history-section"><div class="pos-history-title"><div><span>RIWAYAT TRANSAKSI</span><h3>Penjualan · ${escapeHtml(period)}</h3></div></div><div class="toolbar pos-history-toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk" /></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>${periodFilterHtml('sales')}${salesTable(sales,`Penjualan · ${period}`)}</div>`;
+  if(!can('sales_create')) return history;
+  ensurePosDraft();
+  const products=posProducts();
+  if(!products.length){
+    return `<div class="panel pos-no-product"><div><span class="pos-kicker">POINT OF SALE</span><h3>Belum ada produk untuk dijual</h3><p>Tambahkan produk terlebih dahulu sebelum membuat transaksi dari kasir.</p></div>${can('products_create')?'<button class="primary" data-action="add-product">+ Tambah Produk</button>':''}</div>${history}`;
+  }
+  const categories=['Semua',...new Set(products.map(p=>p.category||'Produk'))];
+  const totals=posTotals();
+  const methods=['Cash','QRIS','Transfer','E-Wallet','Tempo'];
+  return `<div class="pos-session-bar"><div><span class="pos-kicker">POINT OF SALE</span><strong>Transaksi Baru</strong><small>Invoice dibuat otomatis setelah transaksi disimpan.</small></div><div class="pos-session-actions"><label><span>Tanggal</span><input id="posDate" type="date" value="${escapeAttr(posDraft.date||today())}"></label><button type="button" class="ghost" id="posResetBtn">Kosongkan</button></div></div>
+  <div class="pos-layout">
+    <section class="pos-product-panel">
+      <div class="pos-product-tools"><div class="pos-search-wrap"><span>⌕</span><input id="posProductSearch" type="search" value="${escapeAttr(posDraft.product_query||'')}" placeholder="Cari nama produk atau SKU..." autocomplete="off"></div><div class="pos-category-tabs" id="posCategoryTabs">${categories.map(c=>`<button type="button" class="${posDraft.category===c?'active':''}" data-pos-category="${escapeAttr(c)}">${escapeHtml(c)}</button>`).join('')}</div></div>
+      <div class="pos-product-grid" id="posProductGrid">${posProductCardsHtml()}</div>
+    </section>
+    <aside class="pos-cart-panel" id="posCartPanel">
+      <div class="pos-cart-head"><div><span>KERANJANG</span><h3>Pesanan Saat Ini</h3></div><b id="posItemCount">${num(totals.totalQty)} item</b></div>
+      <div class="pos-customer-row"><input id="posCustomer" value="${escapeAttr(posDraft.customer||'')}" placeholder="Nama customer (opsional)"><input id="posCustomerPhone" value="${escapeAttr(posDraft.customer_phone||'')}" placeholder="No. HP (opsional)" inputmode="tel"></div>
+      <details class="pos-more-details"><summary>Detail customer & catatan</summary><div><textarea id="posCustomerAddress" rows="2" placeholder="Alamat / tujuan pengiriman">${escapeHtml(posDraft.customer_address||'')}</textarea><textarea id="posNotes" rows="2" placeholder="Catatan transaksi">${escapeHtml(posDraft.notes||'')}</textarea></div></details>
+      <div class="pos-cart-lines" id="posCartLines">${posCartRowsHtml()}</div>
+      <div class="pos-summary">
+        <div><span>Subtotal</span><strong id="posSubtotal">${rupiah(totals.subtotal)}</strong></div>
+        <label><span>Diskon</span><div class="pos-money-input"><b>Rp</b><input id="posDiscount" type="number" min="0" step="1" value="${Number(posDraft.discount||0)}"></div></label>
+        <div class="pos-total-row"><span>Total</span><strong id="posGrandTotal">${rupiah(totals.total)}</strong></div>
+      </div>
+      <div class="pos-payment-block"><span class="pos-payment-label">Metode Pembayaran</span><div class="pos-payment-methods" id="posPaymentMethods">${methods.map(m=>`<button type="button" class="pos-pay-method ${posDraft.payment_method===m?'active':''}" data-pos-method="${escapeAttr(m)}">${escapeHtml(m)}</button>`).join('')}</div><label class="pos-paid-field"><span id="posPaidLabel">Uang diterima</span><div class="pos-money-input large"><b>Rp</b><input id="posPaidAmount" type="number" min="0" step="1" value="${escapeAttr(posDraft.paid_amount)}" placeholder="Kosong = bayar pas"></div></label><div class="pos-payment-hint" id="posPaymentHint">—</div></div>
+      <button type="button" class="primary pos-checkout" id="posCheckoutBtn" ${posDraft.cart.length?'':'disabled'}>Selesaikan Transaksi · ${rupiah(totals.total)}</button>
+      <small class="pos-checkout-note">Stok dan laporan baru berubah setelah transaksi berhasil disimpan.</small>
+    </aside>
+  </div>
+  <button type="button" class="pos-mobile-cart" id="posMobileCartBtn"><span>Keranjang · <b id="posMobileItemCount">${num(totals.totalQty)} item</b></span><strong id="posMobileTotal">${rupiah(totals.total)}</strong></button>
+  ${history}`;
 }
 
 function salesTable(sales,title){
@@ -542,17 +644,104 @@ function bindPageActions(){
   const et=$('#expenseToFilter'); if(et) et.onchange=()=>updatePeriodDate('expenses','to',et.value);
   const rm=$('#reportMonthFilter'); if(rm) rm.onchange=()=>{viewFilters.reports.month=rm.value||localMonthKey();viewFilters.reports.year=(viewFilters.reports.month||localMonthKey()).slice(0,4);render();};
   const ry=$('#reportYearFilter'); if(ry) ry.onchange=()=>{viewFilters.reports.year=ry.value||localYear();render();};
+  bindPosCashier();
   bindAuditFilters();
   const ownerInviteForm=$('#systemOwnerInviteForm');
   if(ownerInviteForm) ownerInviteForm.onsubmit=async e=>{e.preventDefault();const f=new FormData(ownerInviteForm);await withSubmitBusy(ownerInviteForm,async()=>{try{const result=await invokeAccountAdmin('invite-owner',{email:f.get('email'),redirect_to:recoveryRedirectUrl()});ownerInviteForm.reset();await loadManagedOwners();render();toast(result?.message||'Undangan Owner diproses','success',6500)}catch(err){toast(err.message,'error');throw err}})};
 }
+function posSetQty(productId,nextQty){
+  ensurePosDraft();
+  const p=state.products.find(x=>x.id===productId&&x.business_id===state.currentBusinessId);if(!p)return;
+  let qty=Math.max(0,Number(nextQty||0));
+  if(p.category!=='Jasa'&&!activeBusiness()?.allow_negative_stock) qty=Math.min(qty,Math.max(0,Number(p.stock||0)));
+  const idx=posDraft.cart.findIndex(x=>x.product_id===productId);
+  if(qty<=0){ if(idx>=0)posDraft.cart.splice(idx,1); }
+  else if(idx>=0)posDraft.cart[idx].qty=qty;
+  else posDraft.cart.push({product_id:productId,qty});
+}
+function refreshPosSummary(){
+  if(!$('#posCartPanel'))return;
+  const t=posTotals();
+  const set=(sel,text)=>{const el=$(sel);if(el)el.textContent=text;};
+  set('#posSubtotal',rupiah(t.subtotal));set('#posGrandTotal',rupiah(t.total));set('#posItemCount',`${num(t.totalQty)} item`);set('#posMobileItemCount',`${num(t.totalQty)} item`);set('#posMobileTotal',rupiah(t.total));
+  const checkout=$('#posCheckoutBtn');if(checkout){checkout.disabled=!posDraft.cart.length;checkout.textContent=`Selesaikan Transaksi · ${rupiah(t.total)}`;}
+  const label=$('#posPaidLabel');const hint=$('#posPaymentHint');
+  if(label) label.textContent=posDraft.payment_method==='Tempo'?'DP / pembayaran awal':posDraft.payment_method==='Cash'?'Uang diterima':'Nominal pembayaran';
+  if(hint){
+    const raw=String(posDraft.paid_amount??'').trim();const amount=raw===''?null:Math.max(0,Number(raw||0));
+    if(posDraft.payment_method==='Tempo'){
+      const paid=Math.min(amount??0,t.total);hint.textContent=`Dibayar ${rupiah(paid)} · Sisa ${rupiah(Math.max(t.total-paid,0))}`;hint.className='pos-payment-hint '+(t.total-paid>0?'warn':'good');
+    }else if(posDraft.payment_method==='Cash'){
+      if(amount===null){hint.textContent=`Pembayaran pas · ${rupiah(t.total)}`;hint.className='pos-payment-hint';}
+      else if(amount>=t.total){hint.textContent=`Kembalian ${rupiah(amount-t.total)}`;hint.className='pos-payment-hint good';}
+      else{hint.textContent=`Kurang ${rupiah(t.total-amount)} · pilih Tempo untuk pembayaran sebagian`;hint.className='pos-payment-hint warn';}
+    }else{
+      hint.textContent=`Transaksi akan dicatat lunas sebesar ${rupiah(t.total)}`;hint.className='pos-payment-hint good';
+    }
+  }
+}
+function refreshPosDynamic(){
+  const grid=$('#posProductGrid'),cart=$('#posCartLines');if(!grid||!cart)return;
+  grid.innerHTML=posProductCardsHtml();cart.innerHTML=posCartRowsHtml();
+  $$('[data-pos-add]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.posAdd;const line=posDraft.cart.find(x=>x.product_id===id);posSetQty(id,Number(line?.qty||0)+1);refreshPosDynamic();});
+  $$('[data-pos-inc]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.posInc;const line=posDraft.cart.find(x=>x.product_id===id);posSetQty(id,Number(line?.qty||0)+1);refreshPosDynamic();});
+  $$('[data-pos-dec]').forEach(btn=>btn.onclick=()=>{const id=btn.dataset.posDec;const line=posDraft.cart.find(x=>x.product_id===id);posSetQty(id,Number(line?.qty||0)-1);refreshPosDynamic();});
+  $$('[data-pos-remove]').forEach(btn=>btn.onclick=()=>{posSetQty(btn.dataset.posRemove,0);refreshPosDynamic();});
+  $$('[data-pos-qty]').forEach(input=>input.onchange=()=>{posSetQty(input.dataset.posQty,Number(input.value||0));refreshPosDynamic();});
+  refreshPosSummary();
+}
+async function submitPosSale(){
+  ensurePosDraft();
+  if(!posDraft.cart.length){toast('Keranjang masih kosong','error');return;}
+  const t=posTotals();const products=posProducts();
+  for(const line of posDraft.cart){
+    const p=products.find(x=>x.id===line.product_id);const qty=Number(line.qty||0);
+    if(!p||qty<=0){toast('Ada item transaksi yang tidak valid','error');return;}
+    if(p.category!=='Jasa'&&!activeBusiness()?.allow_negative_stock&&qty>Number(p.stock||0)){toast(`Stok ${p.name} tidak cukup. Tersedia ${num(p.stock||0)}`,'error');return;}
+  }
+  const method=posDraft.payment_method||'Cash';const raw=String(posDraft.paid_amount??'').trim();const tendered=raw===''?null:Math.max(0,Number(raw||0));
+  let paid=0;
+  if(method==='Tempo') paid=Math.min(tendered??0,t.total);
+  else {
+    if(method==='Cash'&&tendered!==null&&tendered<t.total){toast('Uang diterima masih kurang. Pilih Tempo jika transaksi belum lunas.','error');return;}
+    paid=t.total;
+  }
+  const lineItems=posDraft.cart.map((line,i)=>{const p=products.find(x=>x.id===line.product_id);const qty=Number(line.qty||0);const price=Number(p.price||0),cost=Number(p.cost||0);return {business_id:state.currentBusinessId,sale_id:null,line_no:i+1,product_id:p.id,product_name:p.name||'',unit:p.unit||'pcs',qty,unit_price:price,unit_cost:cost,line_total:qty*price,line_gross_profit:qty*(price-cost)};});
+  const first=lineItems[0];const summary=lineItems.length===1?first.product_name:`${first.product_name} +${lineItems.length-1} item`;
+  const sale={business_id:state.currentBusinessId,client_request_id:posDraft.request_id,date:posDraft.date||today(),invoice_no:null,delivery_no:null,customer:posDraft.customer||'',customer_phone:posDraft.customer_phone||'',customer_address:posDraft.customer_address||'',notes:posDraft.notes||'',product_id:first.product_id,product_name:summary,qty:t.totalQty,unit_price:first.unit_price,unit_cost:first.unit_cost,discount:t.discount,total:t.total,gross_profit:t.total-t.costTotal,payment_method:method,paid_amount:paid,items:lineItems};
+  const btn=$('#posCheckoutBtn');const old=btn?.textContent;if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Menyimpan transaksi...';}
+  try{
+    await addSale(sale);
+    const change=method==='Cash'&&tendered!==null?Math.max(tendered-t.total,0):0;
+    resetPosDraft();render();toast(change>0?`Penjualan tersimpan · Kembalian ${rupiah(change)}`:'Penjualan tersimpan','success',4500);
+  }catch(err){toast(err.message||'Transaksi gagal disimpan','error',5000);if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=old||'Selesaikan Transaksi';}}
+}
+function bindPosCashier(){
+  if(!$('#posCartPanel'))return;
+  ensurePosDraft();
+  const q=$('#posProductSearch');if(q)q.oninput=()=>{posDraft.product_query=q.value;refreshPosDynamic();};
+  $$('[data-pos-category]').forEach(btn=>btn.onclick=()=>{posDraft.category=btn.dataset.posCategory||'Semua';$$('[data-pos-category]').forEach(x=>x.classList.toggle('active',x===btn));refreshPosDynamic();});
+  const date=$('#posDate');if(date)date.onchange=()=>{posDraft.date=date.value||today();};
+  const customer=$('#posCustomer');if(customer)customer.oninput=()=>posDraft.customer=customer.value;
+  const phone=$('#posCustomerPhone');if(phone)phone.oninput=()=>posDraft.customer_phone=phone.value;
+  const address=$('#posCustomerAddress');if(address)address.oninput=()=>posDraft.customer_address=address.value;
+  const notes=$('#posNotes');if(notes)notes.oninput=()=>posDraft.notes=notes.value;
+  const discount=$('#posDiscount');if(discount)discount.oninput=()=>{posDraft.discount=Math.max(0,Number(discount.value||0));refreshPosSummary();};
+  const paid=$('#posPaidAmount');if(paid)paid.oninput=()=>{posDraft.paid_amount=paid.value;refreshPosSummary();};
+  $$('[data-pos-method]').forEach(btn=>btn.onclick=()=>{posDraft.payment_method=btn.dataset.posMethod||'Cash';$$('[data-pos-method]').forEach(x=>x.classList.toggle('active',x===btn));refreshPosSummary();});
+  const reset=$('#posResetBtn');if(reset)reset.onclick=()=>{if(posDraft.cart.length&&!confirm('Kosongkan transaksi yang sedang dibuat?'))return;resetPosDraft();render();};
+  const checkout=$('#posCheckoutBtn');if(checkout)checkout.onclick=submitPosSale;
+  const mobile=$('#posMobileCartBtn');if(mobile)mobile.onclick=()=>$('#posCartPanel')?.scrollIntoView({behavior:'smooth',block:'start'});
+  refreshPosDynamic();
+}
+
 function filterRows(input,selector){ const q=input.value.toLowerCase(); $$(selector).forEach(r=>r.style.display=r.textContent.toLowerCase().includes(q)?'':'none'); }
 
 function handleAction(action,el){
   const id=el?.dataset?.id;
   if(action==='reset-sales-period') return resetPeriodFilter('sales');
   if(action==='reset-expenses-period') return resetPeriodFilter('expenses');
-  if(action==='add-sale') return requirePermission('sales_create')&&openSaleModal();
+  if(action==='add-sale') return requirePermission('sales_create')&&navigate('sales');
   if(action==='edit-sale') return requirePermission('sales_edit')&&openSaleModal(id);
   if(action==='print-sale') return requirePermission('print')&&openPrintDocumentModal(id);
   if(action==='payments-sale') return requirePermission('payments_manage')&&openPaymentsModal(id);
@@ -1430,7 +1619,7 @@ function enterDemoSandbox(){
 }
 
 // -------- Global bindings --------
-$('#quickSaleBtn').onclick=()=>requirePermission('sales_create')&&openSaleModal();
+$('#quickSaleBtn').onclick=()=>requirePermission('sales_create')&&navigate('sales');
 $('#openSettingsBtn').onclick=()=>navigate('settings');
 $('#accountSettingsBtn').onclick=()=>navigate('settings');
 $('#logoutBtn').onclick=()=>logoutCloud();
