@@ -18,7 +18,8 @@ const shortDateLabel = (value) => value ? new Date(value+'T00:00:00').toLocaleDa
 const viewFilters = {
   sales:{month:'',from:'',to:''},
   expenses:{month:'',from:'',to:''},
-  reports:{month:localMonthKey(),year:localYear()}
+  reports:{month:localMonthKey(),year:localYear()},
+  purchases:{month:'',from:'',to:''}
 };
 
 
@@ -91,6 +92,7 @@ const NAV = [
   {id:'dashboard',label:'Dashboard',icon:'⌂'},
   {id:'sales',label:'Kasir',icon:'▣'},
   {id:'products',label:'Produk',icon:'◫'},
+  {id:'purchases',label:'Pembelian',icon:'⇩'},
   {id:'expenses',label:'Biaya',icon:'↘'},
   {id:'reports',label:'Laporan',icon:'▤'},
   {id:'team',label:'Tim & Role',mobileLabel:'Tim',icon:'♙'},
@@ -103,13 +105,13 @@ const NAV = [
 const ROLE_LABELS={owner:'Owner',admin:'Admin',cashier:'Kasir',finance:'Finance',warehouse:'Gudang',staff:'Staff'};
 const ROLE_PERMISSIONS={
   owner:['*'],
-  admin:['dashboard_financial','sales_view','sales_create','sales_edit','sales_delete','payments_manage','payments_delete','products_view','products_create','products_edit','products_delete','expenses_view','expenses_edit','expenses_delete','reports','audit','team_view','business_edit','export','print','sync'],
+  admin:['dashboard_financial','sales_view','sales_create','sales_edit','sales_delete','payments_manage','payments_delete','products_view','products_create','products_edit','products_delete','purchases_view','purchases_manage','expenses_view','expenses_edit','expenses_delete','reports','audit','team_view','business_edit','export','print','sync'],
   cashier:['dashboard_basic','sales_view','sales_create','sales_edit','payments_manage','products_view','print','sync'],
-  finance:['dashboard_financial','sales_view','payments_manage','products_view','view_cost','expenses_view','expenses_edit','reports','export','print','sync'],
-  warehouse:['dashboard_stock','sales_view','products_view','products_stock_edit','print','sync'],
+  finance:['dashboard_financial','sales_view','payments_manage','products_view','view_cost','purchases_view','purchases_manage','expenses_view','expenses_edit','reports','export','print','sync'],
+  warehouse:['dashboard_stock','sales_view','products_view','products_stock_edit','purchases_view','purchases_receive','print','sync'],
   staff:['dashboard_basic','products_view','sync']
 };
-const NAV_PERMISSION={dashboard:null,sales:'sales_view',products:'products_view',expenses:'expenses_view',reports:'reports',team:'team_view',audit:'audit',settings:null,systemAdmin:null};
+const NAV_PERMISSION={dashboard:null,sales:'sales_view',products:'products_view',purchases:'purchases_view',expenses:'expenses_view',reports:'reports',team:'team_view',audit:'audit',settings:null,systemAdmin:null};
 function currentRole(){return state.mode==='local'?(state.demoRole||'owner'):(state.currentRole||'staff')}
 function can(permission){if(!permission)return true;const perms=ROLE_PERMISSIONS[currentRole()]||[];return perms.includes('*')||perms.includes(permission)}
 function requirePermission(permission,message='Anda tidak memiliki akses untuk tindakan ini.'){if(!can(permission)){toast(message,'error');return false}return true}
@@ -149,7 +151,7 @@ const defaultState = () => ({
     {id:'e2',business_id:'demo-business',date:new Date(Date.now()-86400000).toISOString().slice(0,10),category:'Transport',description:'Pengiriman lokal',amount:40000,payment_method:'Cash'},
   ],
   auditLogs:[], memberships:[], teamMembers:[], currentRole:'owner', demoRole:'owner', documentSequences:{}, syncStatus:'idle', syncError:null,
-  session:null, cloudConfig:null, lastSync:null, isSystemAdmin:false, managedOwners:[]
+  session:null, cloudConfig:null, lastSync:null, isSystemAdmin:false, managedOwners:[], purchaseTab:'po', suppliers:[], purchaseOrders:[], purchaseOrderItems:[]
 });
 
 let state = loadLocal();
@@ -164,6 +166,7 @@ function loadLocal(){
     const data=raw ? {...defaultState(),...JSON.parse(raw)} : defaultState();
     data.payments=Array.isArray(data.payments)?data.payments:[];
     data.saleItems=Array.isArray(data.saleItems)?data.saleItems:[];
+    data.suppliers=Array.isArray(data.suppliers)?data.suppliers:[]; data.purchaseOrders=Array.isArray(data.purchaseOrders)?data.purchaseOrders:[]; data.purchaseOrderItems=Array.isArray(data.purchaseOrderItems)?data.purchaseOrderItems:[];
     // Upgrade transaksi single-item lama menjadi sale_items lokal agar invoice lama tetap kompatibel.
     (data.sales||[]).forEach(sale=>{
       if(data.saleItems.some(i=>i.sale_id===sale.id&&i.business_id===sale.business_id))return;
@@ -208,7 +211,7 @@ function renderNav(){
   const visible=NAV.filter(n=>n.id==='systemAdmin'?(state.mode==='cloud'&&state.isSystemAdmin):can(NAV_PERMISSION[n.id]));
   if(!visible.some(n=>n.id===state.page)) state.page=state.isSystemAdmin&&!state.businesses.length?'systemAdmin':'dashboard';
   $('#desktopNav').innerHTML = visible.map(n=>`<button class="nav-item ${state.page===n.id?'active':''}" data-nav="${n.id}"><span class="nav-icon">${n.icon}</span>${n.label}</button>`).join('');
-  const preferred=state.isSystemAdmin?['dashboard','sales','products','team','settings','systemAdmin']:['dashboard','sales','products','expenses','reports','team','audit'];
+  const preferred=state.isSystemAdmin?['dashboard','sales','products','team','settings','systemAdmin']:['dashboard','sales','products','purchases','expenses','reports','team','audit'];
   const mobile=visible.filter(n=>preferred.includes(n.id)).slice(0,6);
   $('#mobileNav').style.setProperty('--mobile-count',Math.max(mobile.length,1));
   $('#mobileNav').innerHTML = mobile.map(n=>`<button class="${state.page===n.id?'active':''}" data-nav="${n.id}"><b>${n.icon}</b>${n.mobileLabel||n.label}</button>`).join('');
@@ -263,9 +266,9 @@ function enhanceResponsiveTables(root=document){
 
 function render(){
   renderNav(); renderBusinessSelect(); renderSyncBadge();
-  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['POINT OF SALE','Kasir POS'],products:['INVENTORY','Produk & Stok'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan'],systemAdmin:['PLATFORM CONTROL','Admin Sistem']};
+  const meta={dashboard:['BUSINESS OVERVIEW','Dashboard'],sales:['POINT OF SALE','Kasir POS'],products:['INVENTORY','Produk & Stok'],purchases:['PROCUREMENT','Pembelian'],expenses:['OPERASIONAL','Biaya Usaha'],reports:['PERFORMA','Laporan'],team:['ACCESS CONTROL','Tim & Role'],audit:['SECURITY & CONTROL','Audit Log'],settings:['SYSTEM','Pengaturan'],systemAdmin:['PLATFORM CONTROL','Admin Sistem']};
   const activeMeta=meta[state.page]||meta.dashboard; $('#pageEyebrow').textContent=activeMeta[0]; $('#pageTitle').textContent=activeMeta[1];
-  const pages={dashboard:renderDashboard,sales:renderSales,products:renderProducts,expenses:renderExpenses,reports:renderReports,team:renderTeam,audit:renderAuditLog,settings:renderSettingsPage,systemAdmin:renderSystemAdmin};
+  const pages={dashboard:renderDashboard,sales:renderSales,products:renderProducts,purchases:renderPurchases,expenses:renderExpenses,reports:renderReports,team:renderTeam,audit:renderAuditLog,settings:renderSettingsPage,systemAdmin:renderSystemAdmin};
   $('#pageContent').innerHTML=pages[state.page]();
   $('#quickSaleBtn')?.classList.toggle('hidden',!can('sales_create'));
   $('#newBusinessBtn')?.classList.toggle('hidden',state.mode==='cloud'&&currentRole()!=='owner');
@@ -382,15 +385,11 @@ function posCartRowsHtml(){
 }
 function renderSales(){
   if(!can('sales_view')) return accessDenied('Kasir / Penjualan');
-  const allSales=businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)));
-  const sales=periodFilterRows(allSales,viewFilters.sales);
-  const period=periodLabel(viewFilters.sales);
-  const history=`<div class="pos-history-section"><div class="pos-history-title"><div><span>RIWAYAT TRANSAKSI</span><h3>Penjualan · ${escapeHtml(period)}</h3></div></div><div class="toolbar pos-history-toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk" /></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>${periodFilterHtml('sales')}${salesTable(sales,`Penjualan · ${period}`)}</div>`;
-  if(!can('sales_create')) return history;
+  if(!can('sales_create')) return `<div class="panel"><div class="empty">Role ini hanya dapat melihat histori penjualan melalui menu Laporan.</div></div>`;
   ensurePosDraft();
   const products=posProducts();
   if(!products.length){
-    return `<div class="panel pos-no-product"><div><span class="pos-kicker">POINT OF SALE</span><h3>Belum ada produk untuk dijual</h3><p>Tambahkan produk terlebih dahulu sebelum membuat transaksi dari kasir.</p></div>${can('products_create')?'<button class="primary" data-action="add-product">+ Tambah Produk</button>':''}</div>${history}`;
+    return `<div class="panel pos-no-product"><div><span class="pos-kicker">POINT OF SALE</span><h3>Belum ada produk untuk dijual</h3><p>Tambahkan produk terlebih dahulu sebelum membuat transaksi dari kasir.</p></div>${can('products_create')?'<button class="primary" data-action="add-product">+ Tambah Produk</button>':''}</div>`;
   }
   const categories=['Semua',...new Set(products.map(p=>p.category||'Produk'))];
   const totals=posTotals();
@@ -417,7 +416,7 @@ function renderSales(){
     </aside>
   </div>
   <button type="button" class="pos-mobile-cart" id="posMobileCartBtn"><span>Keranjang · <b id="posMobileItemCount">${num(totals.totalQty)} item</b></span><strong id="posMobileTotal">${rupiah(totals.total)}</strong></button>
-  ${history}`;
+`;
 }
 
 function salesTable(sales,title){
@@ -434,6 +433,25 @@ function renderProducts(){
   return `<div class="toolbar"><div class="toolbar-left"><input class="search" id="productSearch" placeholder="Cari SKU / produk" /></div><div class="toolbar-right">${can('products_create')?'<button class="primary" data-action="add-product">+ Produk Baru</button>':''}${can('export')?'<button class="ghost" data-action="export-products">Export CSV</button>':''}</div></div>
   <div class="table-card"><div class="table-head"><h3>Master Produk</h3><span class="muted">${products.length} item</span></div><div class="table-wrap"><table><thead><tr><th>SKU</th><th>Nama</th><th>Kategori</th>${showCost?'<th>HPP</th>':''}${showPrice?'<th>Harga</th>':''}<th>Stok</th><th>Min</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${products.map(p=>{const low=p.category!=='Jasa'&&Number(p.stock)<=Number(p.min_stock);const actions=[(can('products_edit')||can('products_stock_edit'))?`<button type="button" class="row-action edit" data-action="edit-product" data-id="${p.id}">${can('products_edit')?'Edit':'Update Stok'}</button>`:'',can('products_delete')?`<button type="button" class="row-action delete" data-action="delete-product" data-id="${p.id}">Hapus</button>`:''].filter(Boolean).join('');return `<tr><td>${escapeHtml(p.sku)}</td><td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.category)}</td>${showCost?`<td class="money">${rupiah(p.cost)}</td>`:''}${showPrice?`<td class="money">${rupiah(p.price)}</td>`:''}<td>${p.category==='Jasa'?'—':num(p.stock)}</td><td>${p.category==='Jasa'?'—':num(p.min_stock)}</td><td><span class="pill ${low?'bad':'good'}">${p.category==='Jasa'?'Jasa':low?'Restock':'Aman'}</span></td><td><div class="row-actions">${actions||'—'}</div></td></tr>`}).join('')}</tbody></table></div></div>`;
 }
+
+
+function purchaseItems(poId){return (state.purchaseOrderItems||[]).filter(x=>x.purchase_order_id===poId&&x.business_id===state.currentBusinessId).sort((a,b)=>Number(a.line_no||0)-Number(b.line_no||0));}
+function poReceivedTotal(po){return purchaseItems(po.id).reduce((a,x)=>a+Number(x.received_qty||0),0)}
+function poStatusLabel(s){return ({draft:'Draft',ordered:'Dipesan',partial:'Diterima Sebagian',completed:'Selesai',cancelled:'Dibatalkan'})[s]||s||'-'}
+function renderPurchases(){
+ if(!can('purchases_view'))return accessDenied('Pembelian'); const tab=state.purchaseTab||'po'; const pos=businessData(state.purchaseOrders||[]).slice().sort((a,b)=>String(b.order_date||'').localeCompare(String(a.order_date||''))); const suppliers=businessData(state.suppliers||[]);
+ const tabs=`<div class="purchase-tabs"><button data-action="purchase-tab" data-tab="po" class="${tab==='po'?'active':''}">Purchase Order</button><button data-action="purchase-tab" data-tab="receiving" class="${tab==='receiving'?'active':''}">Penerimaan Barang</button><button data-action="purchase-tab" data-tab="suppliers" class="${tab==='suppliers'?'active':''}">Supplier</button></div>`;
+ if(tab==='suppliers')return `${tabs}<div class="toolbar"><div class="toolbar-left"><input class="search" id="supplierSearch" placeholder="Cari supplier"></div><div class="toolbar-right">${can('purchases_manage')?'<button class="primary" data-action="add-supplier">+ Supplier</button>':''}</div></div><div class="table-card"><div class="table-head"><h3>Supplier</h3><span class="muted">${suppliers.length} supplier</span></div><div class="table-wrap"><table><thead><tr><th>Nama</th><th>Kontak</th><th>Telepon</th><th>Alamat</th></tr></thead><tbody>${suppliers.length?suppliers.map(x=>`<tr><td><b>${escapeHtml(x.name)}</b></td><td>${escapeHtml(x.contact_person||'-')}</td><td>${escapeHtml(x.phone||'-')}</td><td>${escapeHtml(x.address||'-')}</td></tr>`).join(''):'<tr><td colspan="4"><div class="empty">Belum ada supplier.</div></td></tr>'}</tbody></table></div></div>`;
+ if(tab==='receiving'){const open=pos.filter(x=>['ordered','partial'].includes(x.status));return `${tabs}<div class="purchase-hero"><div><span>BARANG DATANG</span><h3>Penerimaan Bahan Baku</h3><p>Stok hanya bertambah setelah barang benar-benar diterima.</p></div></div><div class="po-grid">${open.length?open.map(po=>{const sup=suppliers.find(x=>x.id===po.supplier_id);return `<div class="po-card"><div><span>${escapeHtml(po.po_no||'-')}</span><h3>${escapeHtml(sup?.name||'Supplier')}</h3><small>${fmtDate(po.order_date)} · ${poStatusLabel(po.status)}</small></div><strong>${rupiah(po.total_amount)}</strong><button class="primary" data-action="receive-po" data-id="${escapeAttr(po.id)}">Terima Barang</button></div>`}).join(''):'<div class="empty">Tidak ada PO yang menunggu penerimaan.</div>'}</div>`}
+ return `${tabs}<div class="toolbar"><div class="toolbar-left"><span class="muted">Pesan bahan baku ke supplier tanpa langsung mengubah stok.</span></div><div class="toolbar-right">${can('purchases_manage')?'<button class="primary" data-action="add-po">+ Buat Purchase Order</button>':''}</div></div><div class="table-card"><div class="table-head"><h3>Purchase Order</h3><span class="muted">${pos.length} PO</span></div><div class="table-wrap"><table><thead><tr><th>Tanggal</th><th>No. PO</th><th>Supplier</th><th>Total</th><th>Dibayar</th><th>Hutang</th><th>Status</th><th>Aksi</th></tr></thead><tbody>${pos.length?pos.map(po=>{const sup=suppliers.find(x=>x.id===po.supplier_id);const due=Math.max(Number(po.total_amount||0)-Number(po.paid_amount||0),0);return `<tr><td>${fmtDate(po.order_date)}</td><td><b>${escapeHtml(po.po_no||'-')}</b></td><td>${escapeHtml(sup?.name||'-')}</td><td class="money">${rupiah(po.total_amount)}</td><td class="money">${rupiah(po.paid_amount)}</td><td class="money">${rupiah(due)}</td><td><span class="pill ${po.status==='completed'?'good':po.status==='cancelled'?'bad':'warn'}">${poStatusLabel(po.status)}</span></td><td><div class="row-actions">${['ordered','partial'].includes(po.status)&&(can('purchases_receive')||can('purchases_manage'))?`<button class="row-action pay" data-action="receive-po" data-id="${escapeAttr(po.id)}">Terima</button>`:''}${can('purchases_manage')&&due>0&&po.status!=='cancelled'?`<button class="row-action edit" data-action="pay-po" data-id="${escapeAttr(po.id)}">Bayar</button>`:''}</div></td></tr>`}).join(''):'<tr><td colspan="8"><div class="empty">Belum ada Purchase Order.</div></td></tr>'}</tbody></table></div></div>`;
+}
+function openSupplierModal(){openModal(`<div class="modal-title"><h2>Supplier Baru</h2><button class="modal-close">×</button></div><form id="supplierForm" class="form-grid"><label>Nama Supplier<input name="name" required></label><label>Kontak PIC<input name="contact_person"></label><label>Telepon<input name="phone"></label><label>Email<input name="email" type="email"></label><label class="span-2">Alamat<textarea name="address" rows="2"></textarea></label><div class="span-2 modal-actions"><button type="button" class="ghost modal-close">Batal</button><button class="primary">Simpan Supplier</button></div></form>`);$('#supplierForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const row={business_id:state.currentBusinessId,name:f.get('name'),contact_person:f.get('contact_person'),phone:f.get('phone'),email:f.get('email'),address:f.get('address')};await saveSupplier(row);closeModal();render();}}
+async function saveSupplier(row){if(state.mode==='cloud'){await createCloudRow('suppliers',row,newClientRequestId());await cloudLoadBusinessData()}else{state.suppliers.push({...row,id:uid(),created_at:new Date().toISOString()});persist()}toast('Supplier tersimpan','success')}
+function openPurchaseOrderModal(){const suppliers=businessData(state.suppliers||[]),products=businessData(state.products).filter(p=>p.category!=='Jasa');if(!suppliers.length)return toast('Tambahkan supplier terlebih dahulu','error');if(!products.length)return toast('Tambahkan bahan baku / produk stok terlebih dahulu','error');openModal(`<div class="modal-title"><h2>Purchase Order Baru</h2><button class="modal-close">×</button></div><form id="poForm" class="form-grid"><label>Tanggal<input name="order_date" type="date" value="${today()}" required></label><label>Supplier<select name="supplier_id">${suppliers.map(x=>`<option value="${x.id}">${escapeHtml(x.name)}</option>`).join('')}</select></label><label>Barang / Bahan Baku<select name="product_id">${products.map(x=>`<option value="${x.id}">${escapeHtml(x.name)} · stok ${num(x.stock)}</option>`).join('')}</select></label><label>Qty<input name="qty" type="number" min="0.01" step="0.01" value="1" required></label><label>Harga Beli / Unit<input name="unit_cost" type="number" min="0" required></label><label>Pembayaran Awal<input name="paid_amount" type="number" min="0" value="0"></label><label class="span-2">Catatan<textarea name="notes" rows="2"></textarea></label><div class="span-2 form-note">PO tidak menambah stok. Stok berubah saat menu Penerimaan Barang digunakan.</div><div class="span-2 modal-actions"><button type="button" class="ghost modal-close">Batal</button><button class="primary">Buat PO</button></div></form>`);const sel=$('#poForm [name=product_id]'),cost=$('#poForm [name=unit_cost]');const sync=()=>{const p=products.find(x=>x.id===sel.value);cost.value=Number(p?.cost||0)};sel.onchange=sync;sync();$('#poForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);await createPurchaseOrder({order_date:f.get('order_date'),supplier_id:f.get('supplier_id'),notes:f.get('notes'),paid_amount:Number(f.get('paid_amount')||0),items:[{product_id:f.get('product_id'),qty:Number(f.get('qty')),unit_cost:Number(f.get('unit_cost'))}]});closeModal();render();}}
+async function createPurchaseOrder(data){const p=state.products.find(x=>x.id===data.items[0].product_id);const qty=data.items[0].qty,cost=data.items[0].unit_cost,total=qty*cost;if(state.mode==='cloud'){const r=await cloudRequest('/rest/v1/rpc/create_purchase_order',{method:'POST',body:{p_bid:state.currentBusinessId,p_supplier_id:data.supplier_id,p_order_date:data.order_date,p_notes:data.notes||null,p_paid_amount:data.paid_amount||0,p_items:data.items}});if(r?.ok===false)throw new Error(r.error||'Gagal membuat PO');await cloudLoadBusinessData()}else{const id=uid(),no=`PO-${String((state.purchaseOrders||[]).length+1).padStart(4,'0')}`;state.purchaseOrders.push({id,business_id:state.currentBusinessId,po_no:no,supplier_id:data.supplier_id,order_date:data.order_date,notes:data.notes,total_amount:total,paid_amount:Math.min(data.paid_amount,total),status:'ordered',created_at:new Date().toISOString()});state.purchaseOrderItems.push({id:uid(),business_id:state.currentBusinessId,purchase_order_id:id,line_no:1,product_id:p.id,product_name:p.name,unit:p.unit,qty,unit_cost:cost,line_total:total,received_qty:0});persist()}toast('Purchase Order dibuat','success')}
+function openReceivePoModal(id){const po=(state.purchaseOrders||[]).find(x=>x.id===id),items=purchaseItems(id);if(!po)return;openModal(`<div class="modal-title"><h2>Terima Barang · ${escapeHtml(po.po_no)}</h2><button class="modal-close">×</button></div><form id="receivePoForm" class="form-grid single">${items.map(i=>`<label>${escapeHtml(i.product_name)} <small>Dipesan ${num(i.qty)} · sudah diterima ${num(i.received_qty||0)}</small><input name="qty_${i.id}" type="number" min="0" max="${Math.max(Number(i.qty)-Number(i.received_qty||0),0)}" step="0.01" value="${Math.max(Number(i.qty)-Number(i.received_qty||0),0)}"></label>`).join('')}<div class="form-note">Qty yang diterima akan langsung menambah stok bahan baku.</div><div class="modal-actions"><button type="button" class="ghost modal-close">Batal</button><button class="primary">Terima Barang</button></div></form>`);$('#receivePoForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);const received=items.map(i=>({item_id:i.id,qty:Number(f.get('qty_'+i.id)||0)})).filter(x=>x.qty>0);if(!received.length)return toast('Isi qty barang yang diterima','error');await receivePurchaseOrder(id,received);closeModal();render();}}
+async function receivePurchaseOrder(id,received){if(state.mode==='cloud'){const r=await cloudRequest('/rest/v1/rpc/receive_purchase_order',{method:'POST',body:{p_bid:state.currentBusinessId,p_po_id:id,p_received:received}});if(r?.ok===false)throw new Error(r.error||'Penerimaan gagal');await cloudLoadBusinessData()}else{for(const r of received){const it=state.purchaseOrderItems.find(x=>x.id===r.item_id);if(!it)continue;const rem=Math.max(Number(it.qty)-Number(it.received_qty||0),0),q=Math.min(rem,r.qty);it.received_qty=Number(it.received_qty||0)+q;const prod=state.products.find(x=>x.id===it.product_id);if(prod){prod.stock=Number(prod.stock||0)+q;prod.cost=Number(it.unit_cost||prod.cost||0)}}const po=state.purchaseOrders.find(x=>x.id===id);const its=purchaseItems(id);po.status=its.every(x=>Number(x.received_qty||0)>=Number(x.qty||0))?'completed':'partial';persist()}toast('Barang diterima dan stok bertambah','success')}
+function payPurchaseOrder(id){const po=state.purchaseOrders.find(x=>x.id===id),due=Math.max(Number(po?.total_amount||0)-Number(po?.paid_amount||0),0);if(!po||due<=0)return;const raw=prompt(`Jumlah pembayaran supplier (maks ${rupiah(due)})`,String(due));if(raw===null)return;const amount=Math.max(0,Math.min(Number(raw||0),due));if(!amount)return toast('Jumlah pembayaran tidak valid','error');(async()=>{if(state.mode==='cloud'){await cloudRequest('/rest/v1/purchase_orders?id=eq.'+encodeURIComponent(id)+'&business_id=eq.'+encodeURIComponent(state.currentBusinessId),{method:'PATCH',body:{paid_amount:Number(po.paid_amount||0)+amount}});await cloudLoadBusinessData()}else{po.paid_amount=Number(po.paid_amount||0)+amount;persist()}render();toast('Pembayaran supplier dicatat','success')})().catch(e=>toast(e.message,'error'))}
 
 function renderExpenses(){
   if(!can('expenses_view')) return accessDenied('Biaya Usaha');
@@ -499,7 +517,8 @@ function renderReports(){
       <div class="form-note">Semua angka pada panel laporan mengikuti bulan yang dipilih. Tren tahunan di bawah selalu menampilkan Januari sampai Desember.</div>
     </div></div>
   </div>
-  <div class="table-card"><div class="table-head"><h3>Tren 12 Bulan · ${escapeHtml(selectedYear)}</h3><span class="muted">Januari – Desember</span></div><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Omzet</th><th>Laba Kotor</th><th>Biaya</th><th>Laba Bersih</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(Number(r.k.slice(0,4)),Number(r.k.slice(5,7))-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</td><td class="money">${rupiah(r.rev)}</td><td class="money">${rupiah(r.gross)}</td><td class="money">${rupiah(r.exp)}</td><td class="money">${rupiah(r.net)}</td></tr>`).join('')}</tbody></table></div></div>`;
+  <div class="table-card"><div class="table-head"><h3>Tren 12 Bulan · ${escapeHtml(selectedYear)}</h3><span class="muted">Januari – Desember</span></div><div class="table-wrap"><table><thead><tr><th>Bulan</th><th>Omzet</th><th>Laba Kotor</th><th>Biaya</th><th>Laba Bersih</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${new Date(Number(r.k.slice(0,4)),Number(r.k.slice(5,7))-1,1).toLocaleDateString('id-ID',{month:'long',year:'numeric'})}</td><td class="money">${rupiah(r.rev)}</td><td class="money">${rupiah(r.gross)}</td><td class="money">${rupiah(r.exp)}</td><td class="money">${rupiah(r.net)}</td></tr>`).join('')}</tbody></table></div></div>
+  <div class="report-sales-section"><div class="section-heading"><div><span>DETAIL TRANSAKSI</span><h3>Laporan Penjualan</h3></div></div><div class="toolbar"><div class="toolbar-left"><input class="search" id="salesSearch" placeholder="Cari invoice / customer / produk"></div><div class="toolbar-right">${can('export')?'<button class="ghost" data-action="export-sales">Export Periode CSV</button>':''}</div></div>${periodFilterHtml('sales')}${salesTable(periodFilterRows(businessData(state.sales).slice().sort((a,b)=>String(b.date).localeCompare(String(a.date))),viewFilters.sales),`Penjualan · ${periodLabel(viewFilters.sales)}`)}</div>`;
 }
 function metricRow(label,value,isMoney=true){return `<div class="metric-row"><span>${label}</span><strong>${isMoney?rupiah(value):value}</strong></div>`}
 
@@ -616,7 +635,7 @@ function renderSettingsPage(){
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
     ${((can('export')&&activeBusiness())||state.mode==='local')?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.8.8 Period & Annual Reports</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.9.0 Purchasing & POS Reports</span></div></div>
   </div>`;
 }
 
@@ -634,6 +653,7 @@ function bindPageActions(){
   $$('[data-action]').forEach(el=>el.onclick=(e)=>{ e.stopPropagation(); handleAction(el.dataset.action,el); });
   $$('[data-nav]').forEach(el=>el.onclick=()=>navigate(el.dataset.nav));
   const ss=$('#salesSearch'); if(ss) ss.oninput=()=>filterRows(ss,'table tbody tr');
+  const su=$('#supplierSearch'); if(su) su.oninput=()=>filterRows(su,'table tbody tr');
   const ps=$('#productSearch'); if(ps) ps.oninput=()=>filterRows(ps,'table tbody tr');
   const es=$('#expenseSearch'); if(es) es.oninput=()=>filterRows(es,'table tbody tr');
   const sm=$('#salesMonthFilter'); if(sm) sm.onchange=()=>updatePeriodMonth('sales',sm.value);
@@ -750,6 +770,11 @@ function handleAction(action,el){
   if(action==='print-payment-receipt') return printSaleDocument(el?.dataset?.saleId,'receipt',id);
   if(action==='delete-payment') return requestSecureDelete('payment',id,'pembayaran '+(state.payments.find(x=>x.id===id)?.payment_no||''),'sales');
   if(action==='delete-sale') return requirePermission('sales_delete')&&requestSecureDelete('sale',id,'transaksi '+(state.sales.find(x=>x.id===id)?.invoice_no||''),'sales');
+  if(action==='purchase-tab'){state.purchaseTab=el.dataset.tab||'po';render();return;}
+  if(action==='add-supplier') return requirePermission('purchases_manage')&&openSupplierModal();
+  if(action==='add-po') return requirePermission('purchases_manage')&&openPurchaseOrderModal();
+  if(action==='receive-po') return (can('purchases_receive')||can('purchases_manage'))?openReceivePoModal(id):toast('Tidak diizinkan','error');
+  if(action==='pay-po') return requirePermission('purchases_manage')&&payPurchaseOrder(id);
   if(action==='add-product') return requirePermission('products_create')&&openProductModal();
   if(action==='edit-product') return (can('products_edit')||can('products_stock_edit'))?openProductModal(id):toast('Tidak diizinkan','error');
   if(action==='delete-product') return requirePermission('products_delete')&&requestSecureDelete('product',id,'produk '+(state.products.find(x=>x.id===id)?.name||''),'products');
@@ -959,7 +984,7 @@ function openProductModal(productId=null){
   if(!editing&&!requirePermission('products_create'))return;
   openModal(`<div class="modal-title"><h2>${editing?'Edit Produk / Jasa':'Produk / Jasa Baru'}</h2><button class="modal-close">×</button></div><form id="productForm" class="form-grid">
     <label>SKU<input name="sku" required value="${escapeAttr(existing?.sku||'')}" placeholder="PRD-001"></label><label>Nama<input name="name" required value="${escapeAttr(existing?.name||'')}" placeholder="Nama produk"></label>
-    <label>Kategori<select name="category"><option ${existing?.category==='Produk'?'selected':''}>Produk</option><option ${existing?.category==='Jasa'?'selected':''}>Jasa</option></select></label><label>Satuan<input name="unit" value="${escapeAttr(existing?.unit||'pcs')}"></label>
+    <label>Kategori<select name="category"><option ${existing?.category==='Produk'?'selected':''}>Produk</option><option ${existing?.category==='Bahan Baku'?'selected':''}>Bahan Baku</option><option ${existing?.category==='Jasa'?'selected':''}>Jasa</option></select></label><label>Satuan<input name="unit" value="${escapeAttr(existing?.unit||'pcs')}"></label>
     <label>HPP / Modal<input name="cost" type="number" min="0" value="${existing?.cost??0}" required></label><label>Harga Jual<input name="price" type="number" min="0" value="${existing?.price??0}" required></label>
     <label>${editing?'Stok Saat Ini':'Stok Awal'}<input name="stock" type="number" min="0" value="${existing?.stock??0}"></label><label>Min Stok<input name="min_stock" type="number" min="0" value="${existing?.min_stock??0}"></label>
     ${editing?`<div class="span-2 form-note">Perubahan stok di sini mengubah stok saat ini. Untuk produk yang sudah punya transaksi, penghapusan permanen akan diblokir agar histori penjualan tetap aman.</div>`:''}
@@ -1556,7 +1581,10 @@ async function cloudLoadBusinessData(){
   queries.push(can('payments_manage')?cloudRequest(`/rest/v1/payments?select=*&business_id=eq.${b}&order=payment_date.asc,payment_no.asc`).catch(()=>[]):Promise.resolve([]));
   queries.push(can('expenses_view')?cloudRequest(`/rest/v1/expenses?select=*&business_id=eq.${b}&order=date.desc,created_at.desc`):Promise.resolve([]));
   queries.push(can('audit')?cloudRequest(`/rest/v1/audit_logs?select=*&business_id=eq.${b}&order=created_at.desc&limit=250`).catch(()=>[]):Promise.resolve([]));
-  const [products,sales,saleItems,payments,expenses,auditLogs]=await Promise.all(queries);state.products=products||[];state.sales=sales||[];state.saleItems=saleItems||[];state.payments=payments||[];state.expenses=expenses||[];state.auditLogs=auditLogs||[];await cloudLoadTeam();state.lastSync=new Date().toISOString();setSyncState('idle');
+  queries.push(can('purchases_view')?cloudRequest(`/rest/v1/suppliers?select=*&business_id=eq.${b}&order=name.asc`).catch(()=>[]):Promise.resolve([]));
+  queries.push(can('purchases_view')?cloudRequest(`/rest/v1/purchase_orders?select=*&business_id=eq.${b}&order=order_date.desc,created_at.desc`).catch(()=>[]):Promise.resolve([]));
+  queries.push(can('purchases_view')?cloudRequest(`/rest/v1/purchase_order_items?select=*&business_id=eq.${b}&order=line_no.asc`).catch(()=>[]):Promise.resolve([]));
+  const [products,sales,saleItems,payments,expenses,auditLogs,suppliers,purchaseOrders,purchaseOrderItems]=await Promise.all(queries);state.products=products||[];state.sales=sales||[];state.saleItems=saleItems||[];state.payments=payments||[];state.expenses=expenses||[];state.auditLogs=auditLogs||[];state.suppliers=suppliers||[];state.purchaseOrders=purchaseOrders||[];state.purchaseOrderItems=purchaseOrderItems||[];await cloudLoadTeam();state.lastSync=new Date().toISOString();setSyncState('idle');
 }
 async function refreshAuditLog(){
   if(state.mode==='cloud'){ try{await cloudLoadBusinessData();navigate('audit');toast('Audit Log diperbarui');}catch(err){toast(err.message);} }
@@ -1579,7 +1607,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.8.8',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.9.0',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),suppliers:businessData(state.suppliers||[]),purchaseOrders:businessData(state.purchaseOrders||[]),purchaseOrderItems:businessData(state.purchaseOrderItems||[]),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportReportYearCsv(){
