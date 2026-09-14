@@ -1,4 +1,4 @@
-# BizControl Online V1.16 — Final Role Matrix
+# BizControl Online V1.17 — Final Role Matrix
 
 Role di bawah berlaku pada UI **dan** dibatasi kembali pada data/RPC Cloud untuk aksi sensitif.
 
@@ -48,3 +48,12 @@ Role di bawah berlaku pada UI **dan** dibatasi kembali pada data/RPC Cloud untuk
 4. **Kasir boleh mengubah profil member, bukan saldo point.** Grant kolom Customer membatasi Kasir ke nama/kontak/alamat/catatan; point, total spend dan visit counter dikelola RPC transaksi.
 5. **Finance tidak membuka POS.** Finance tetap dapat membaca penjualan/pembayaran untuk rekonsiliasi dan laporan.
 6. **Staff bersifat read-only.** Dashboard dasar dan master produk saja; tidak ada transaksi, pembelian, customer, atau finansial.
+
+
+## V1.17 Subscription / Offline Behavior
+
+Status subscription berlaku untuk **semua role bisnis**. Saat `Expired` atau `Suspended`, user tetap dapat login dan membaca data yang memang diizinkan oleh role masing-masing, tetapi mutation bisnis menjadi read-only. Owner/Admin/Finance yang mempunyai hak export tetap dapat membuat backup.
+
+Saat internet terputus, V1.17 menggunakan **Safe Offline Mode**: data yang sudah terbuka tetap dapat dilihat tetapi transaksi/perubahan data diblokir sampai koneksi kembali. Tidak ada offline transaction queue pada V1.17.
+
+Admin Sistem berada di luar role bisnis dan mengelola masa aktif melalui Edge Function server-side; service-role tidak pernah dikirim ke browser.

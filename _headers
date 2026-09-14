@@ -9,3 +9,15 @@
 
 /runtime-config.js
   Cache-Control: no-store, max-age=0
+
+/v116.js
+  Cache-Control: no-store, max-age=0
+
+/v117.js
+  Cache-Control: no-store, max-age=0
+
+/v117.css
+  Cache-Control: no-store, max-age=0
+
+/styles.css
+  Cache-Control: no-store, max-age=0

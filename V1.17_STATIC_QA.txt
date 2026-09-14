@@ -1,0 +1,9 @@
+BizControl Online V1.17 — Final Static QA
+
+46/46 static production-readiness checks PASS.
+Edge Function TypeScript transpile parse: PASS.
+JavaScript syntax: PASS (app.js, v116.js, v117.js, sw.js, demo files).
+vercel.json parse: PASS.
+Migration destructive-data check: PASS (no DROP TABLE / TRUNCATE).
+
+IMPORTANT: final browser visual smoke test and migration execution must be performed on the real BizControl staging project before production, because the local QA browser environment was blocked by organization policy and the connected Supabase tool was a different project from runtime-config.js.

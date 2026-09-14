@@ -1,5 +1,5 @@
-import { createClient } from 'npm:@supabase/supabase-js@^2'
-import { corsHeaders } from 'npm:@supabase/supabase-js@^2/cors'
+import { createClient } from 'npm:@supabase/supabase-js@2.112.3'
+import { corsHeaders } from 'npm:@supabase/supabase-js@2.112.3/cors'
 
 const responseHeaders = {
   ...corsHeaders,
@@ -59,7 +59,7 @@ async function findUserByEmail(admin: any, email: string) {
 
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: responseHeaders })
-  if (req.method === 'GET') return json({ ok: true, service: 'account-admin', version: '1.8.7' })
+  if (req.method === 'GET') return json({ ok: true, service: 'account-admin', version: '1.17.0' })
   if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
   try {
@@ -103,6 +103,85 @@ Deno.serve(async (req: Request) => {
         ok: true,
         owners: (owners || []).map((o: any) => ({ ...o, business_count: counts.get(o.user_id) || 0 })),
       })
+    }
+
+    if (action === 'list-subscriptions') {
+      if (!isSystemAdmin) return json({ error: 'Hanya Admin Sistem yang diizinkan' }, 403)
+      const [{ data: businesses, error: businessError }, { data: subscriptions, error: subscriptionError }, { data: plans, error: planError }, { data: owners, error: ownerError }] = await Promise.all([
+        admin.from('businesses').select('id,name,owner_id,created_at').order('created_at', { ascending: false }),
+        admin.from('business_subscriptions').select('business_id,plan_code,status,started_at,period_end,grace_until,source,notes,updated_at'),
+        admin.from('saas_plans').select('code,name,max_team_users,max_products,features,active').eq('active', true).order('code'),
+        admin.from('owner_accounts').select('user_id,email,status'),
+      ])
+      if (businessError) throw businessError
+      if (subscriptionError) throw subscriptionError
+      if (planError) throw planError
+      if (ownerError) throw ownerError
+      const subMap = new Map((subscriptions || []).map((x: any) => [x.business_id, x]))
+      const ownerMap = new Map((owners || []).map((x: any) => [x.user_id, x]))
+      const now = Date.now()
+      const rows = (businesses || []).map((b: any) => {
+        const sub: any = subMap.get(b.id) || null
+        const periodEnd = sub?.period_end ? new Date(sub.period_end).getTime() : null
+        const graceUntil = sub?.grace_until ? new Date(sub.grace_until).getTime() : null
+        let effectiveStatus = sub?.status || 'expired'
+        if (effectiveStatus !== 'suspended' && effectiveStatus !== 'expired') {
+          if (periodEnd && periodEnd < now) effectiveStatus = graceUntil && graceUntil >= now ? 'grace' : 'expired'
+        }
+        return {
+          business_id: b.id,
+          business_name: b.name,
+          owner_id: b.owner_id,
+          owner_email: ownerMap.get(b.owner_id)?.email || null,
+          created_at: b.created_at,
+          ...(sub || {}),
+          effective_status: effectiveStatus,
+        }
+      })
+      return json({ ok: true, rows, plans: plans || [] })
+    }
+
+    if (action === 'set-subscription') {
+      if (!isSystemAdmin) return json({ error: 'Hanya Admin Sistem yang dapat mengubah subscription' }, 403)
+      const businessId = String(payload.business_id || '').trim()
+      const planCode = String(payload.plan_code || '').trim().toLowerCase()
+      const status = String(payload.status || '').trim().toLowerCase()
+      if (!/^[0-9a-f-]{36}$/i.test(businessId)) return json({ error: 'Business ID tidak valid' }, 400)
+      if (!['trial', 'active', 'grace', 'expired', 'suspended'].includes(status)) return json({ error: 'Status subscription tidak valid' }, 400)
+      const { data: plan, error: planError } = await admin.from('saas_plans').select('code').eq('code', planCode).eq('active', true).maybeSingle()
+      if (planError) throw planError
+      if (!plan) return json({ error: 'Paket tidak ditemukan' }, 400)
+      const normalizeDate = (value: unknown) => {
+        if (!value) return null
+        const d = new Date(String(value))
+        if (Number.isNaN(d.getTime())) throw new Error('Tanggal subscription tidak valid')
+        return d.toISOString()
+      }
+      const nowIso = new Date().toISOString()
+      const row = {
+        business_id: businessId,
+        plan_code: planCode,
+        status,
+        period_end: normalizeDate(payload.period_end),
+        grace_until: normalizeDate(payload.grace_until),
+        notes: String(payload.notes || '').slice(0, 500) || null,
+        source: 'system_admin',
+        updated_by: actor.id,
+        updated_at: nowIso,
+      }
+      const { error: upsertError } = await admin.from('business_subscriptions').upsert(row, { onConflict: 'business_id' })
+      if (upsertError) throw upsertError
+      await admin.from('app_events').insert({
+        business_id: businessId,
+        user_id: actor.id,
+        level: 'info',
+        source: 'account-admin',
+        code: 'SUBSCRIPTION_UPDATED',
+        message: `Subscription diubah ke ${planCode}/${status}`,
+        context: { plan_code: planCode, status, period_end: row.period_end, grace_until: row.grace_until },
+        created_at: nowIso,
+      })
+      return json({ ok: true, message: 'Subscription berhasil diperbarui', subscription: row })
     }
 
     if (action === 'invite-owner') {

@@ -1,4 +1,4 @@
-// BizControl Online runtime config (V1.8.1)
+// BizControl Online runtime config (V1.17)
 // For production deployment, fill these values once on the server/deployment.
 // NEVER place a Supabase service_role/secret key in this file.
 window.BIZCONTROL_CONFIG = window.BIZCONTROL_CONFIG || {

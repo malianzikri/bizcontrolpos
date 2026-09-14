@@ -1,0 +1,12 @@
+BIZCONTROL V1.17 - URUTAN DEPLOY
+
+1. BACKUP database Supabase.
+2. Pastikan migration V1.9 + V1.10-V1.16 yang diperlukan sudah sukses.
+3. Jalankan migration-v1.17-production-readiness.sql SEKALI di project BizControl yang benar.
+4. Deploy ulang Edge Function account-admin dari account-admin-edge-function.ts.
+5. Timpa source web dengan paket V1.17.
+6. Deploy ke Vercel.
+7. Hard refresh / clear PWA cache device kasir.
+8. Smoke test subscription Active -> Expired -> Active, offline banner, backup, onboarding, semua role.
+
+JANGAN jalankan ulang supabase-schema.sql pada database existing.
