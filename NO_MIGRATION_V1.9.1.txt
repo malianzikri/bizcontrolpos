@@ -1,0 +1,1 @@
+V1.9.1 tidak membutuhkan migration SQL baru. Jika migration-v1.9-purchasing.sql sudah pernah dijalankan, jangan jalankan ulang hanya untuk fitur popup invoice.

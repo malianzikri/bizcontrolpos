@@ -635,7 +635,7 @@ function renderSettingsPage(){
     ${state.mode==='cloud'?`<div class="setting-block"><h3>Cloud & Sinkronisasi</h3><p class="muted">Koneksi server dikelola otomatis oleh sistem dan tidak dapat diubah dari akun Owner.</p><div class="status-row"><span class="micro">${isOnline()?'Internet terdeteksi':'Sedang offline'} · ${state.lastSync?'Sync terakhir '+new Date(state.lastSync).toLocaleString('id-ID'):'Belum sync'}</span><span class="pill good">DIKELOLA SISTEM</span></div></div>`:''}
     ${((can('export')&&activeBusiness())||state.mode==='local')?`<div class="setting-block"><h3>Backup & Export</h3><p class="muted">JSON untuk backup penuh; CSV untuk dipindahkan ke Excel.</p><div class="toolbar-left"><button class="ghost" data-action="export-json">Backup JSON</button><button class="ghost" data-action="export-all-csv">Export Semua CSV</button>${state.mode==='local'?'<button class="ghost" data-action="import-json">Import JSON</button>':''}</div></div>`:''}
     <div class="setting-block"><h3>Nomor Dokumen</h3><p class="muted">INV/KWT/SJ Cloud dibuat atomik di database dan dilindungi unique index.</p></div>
-    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.9.0 Purchasing & POS Reports</span></div></div>
+    <div class="setting-block"><h3>Versi</h3><div class="status-row"><span>BizControl Online</span><span class="code-chip">V1.9.1 Purchasing, POS & Invoice Confirmation</span></div></div>
   </div>`;
 }
 
@@ -710,6 +710,25 @@ function refreshPosDynamic(){
   $$('[data-pos-qty]').forEach(input=>input.onchange=()=>{posSetQty(input.dataset.posQty,Number(input.value||0));refreshPosDynamic();});
   refreshPosSummary();
 }
+function openPostSaleSuccessModal(saleId,{change=0,tendered=null,method='Cash'}={}){
+  const sale=state.sales.find(x=>x.id===saleId&&x.business_id===state.currentBusinessId);if(!sale){toast('Transaksi berhasil disimpan','success');return;}
+  const due=Math.max(Number(sale.total||0)-Number(sale.paid_amount||0),0);
+  const paid=Number(sale.paid_amount||0);
+  const tenderedAmount=tendered===null||tendered===undefined?null:Number(tendered||0);
+  const paymentDetail=method==='Cash'
+    ? `<div><span>Uang diterima</span><strong>${rupiah(tenderedAmount===null?sale.total:tenderedAmount)}</strong></div><div><span>Kembalian</span><strong class="status-good">${rupiah(Math.max(Number(change||0),0))}</strong></div>`
+    : `<div><span>Dibayar</span><strong>${rupiah(paid)}</strong></div><div><span>Sisa</span><strong class="${due?'status-warn':'status-good'}">${rupiah(due)}</strong></div>`;
+  openModal(`<div class="modal-title"><h2>Transaksi Berhasil</h2><button class="modal-close">×</button></div><div class="document-modal-wrap">
+    <div style="display:grid;place-items:center;text-align:center;padding:8px 0 2px"><div style="width:58px;height:58px;border-radius:50%;display:grid;place-items:center;background:#ecfdf3;color:#027a48;font-size:30px;font-weight:800">✓</div><h3 style="margin:12px 0 4px;font-size:20px">Penjualan sudah tersimpan</h3><p class="muted" style="margin:0">Mau cetak invoice sekarang?</p></div>
+    <div class="document-sale-summary"><div><span>Invoice</span><strong>${escapeHtml(sale.invoice_no||'-')}</strong></div><div><span>Total</span><strong>${rupiah(sale.total)}</strong></div><div><span>Metode</span><strong>${escapeHtml(method||sale.payment_method||'-')}</strong></div>${paymentDetail}</div>
+    <div class="form-note">Kalau dilewati, invoice tetap bisa dicetak ulang kapan saja dari <b>Laporan → Laporan Penjualan</b>.</div>
+    <div class="modal-actions"><button type="button" class="ghost" id="postSaleSkipBtn">Tidak Sekarang</button><button type="button" class="ghost" id="postSaleDocsBtn">Dokumen Lain</button>${can('print')?'<button type="button" class="primary" id="postSalePrintBtn">Cetak Invoice</button>':''}</div>
+  </div>`);
+  $('#postSaleSkipBtn')?.addEventListener('click',closeModal);
+  $('#postSaleDocsBtn')?.addEventListener('click',()=>{closeModal();openPrintDocumentModal(saleId)});
+  $('#postSalePrintBtn')?.addEventListener('click',()=>printSaleDocument(saleId,'invoice'));
+}
+
 async function submitPosSale(){
   ensurePosDraft();
   if(!posDraft.cart.length){toast('Keranjang masih kosong','error');return;}
@@ -731,9 +750,11 @@ async function submitPosSale(){
   const sale={business_id:state.currentBusinessId,client_request_id:posDraft.request_id,date:posDraft.date||today(),invoice_no:null,delivery_no:null,customer:posDraft.customer||'',customer_phone:posDraft.customer_phone||'',customer_address:posDraft.customer_address||'',notes:posDraft.notes||'',product_id:first.product_id,product_name:summary,qty:t.totalQty,unit_price:first.unit_price,unit_cost:first.unit_cost,discount:t.discount,total:t.total,gross_profit:t.total-t.costTotal,payment_method:method,paid_amount:paid,items:lineItems};
   const btn=$('#posCheckoutBtn');const old=btn?.textContent;if(btn){btn.disabled=true;btn.classList.add('is-loading');btn.textContent='Menyimpan transaksi...';}
   try{
-    await addSale(sale);
+    const created=await addSale(sale);
+    const saleId=created?.sale_id||state.sales.find(x=>x.business_id===state.currentBusinessId&&x.client_request_id===sale.client_request_id)?.id;
     const change=method==='Cash'&&tendered!==null?Math.max(tendered-t.total,0):0;
-    resetPosDraft();render();toast(change>0?`Penjualan tersimpan · Kembalian ${rupiah(change)}`:'Penjualan tersimpan','success',4500);
+    resetPosDraft();render();toast(change>0?`Penjualan tersimpan · Kembalian ${rupiah(change)}`:'Penjualan tersimpan','success',3500);
+    if(saleId) openPostSaleSuccessModal(saleId,{change,tendered,method});
   }catch(err){toast(err.message||'Transaksi gagal disimpan','error',5000);if(btn){btn.disabled=false;btn.classList.remove('is-loading');btn.textContent=old||'Selesaikan Transaksi';}}
 }
 function bindPosCashier(){
@@ -1182,11 +1203,11 @@ async function addSale(sale){
   if(!items.length)throw new Error('Minimal satu item diperlukan');
   if(state.mode==='cloud'){
     const result=await cloudRequest('/rest/v1/rpc/create_sale_with_items',{method:'POST',body:{p_bid:state.currentBusinessId,p_sale_date:sale.date,p_customer_name:sale.customer||null,p_customer_phone:sale.customer_phone||null,p_customer_address:sale.customer_address||null,p_sale_notes:sale.notes||null,p_items:items.map(x=>({product_id:x.product_id,qty:Number(x.qty||0)})),p_discount:Number(sale.discount||0),p_payment_method:sale.payment_method||'Cash',p_initial_paid:Number(sale.paid_amount||0),p_request_id:requestId}});
-    if(result?.ok===false)throw new Error(result.error||'Gagal membuat transaksi');await cloudLoadBusinessData();
+    if(result?.ok===false)throw new Error(result.error||'Gagal membuat transaksi');await cloudLoadBusinessData();return result;
   } else {
     sale.invoice_no=sale.invoice_no||await nextDocumentNumber('INV',sale.date);sale.delivery_no=sale.delivery_no||await nextDocumentNumber('SJ',sale.date);const initialPaid=Number(sale.paid_amount||0);const rowId=uid();const clean={...sale};delete clean.items;const row={...clean,id:rowId,client_request_id:requestId,paid_amount:0,created_at:new Date().toISOString()};state.sales.push(row);
     items.forEach((it,i)=>{const p=state.products.find(x=>x.id===it.product_id);if(p&&p.category!=='Jasa')p.stock=Number(p.stock||0)-Number(it.qty||0);state.saleItems.push({...it,id:uid(),business_id:state.currentBusinessId,sale_id:rowId,line_no:i+1,created_at:new Date().toISOString()});});
-    localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,{...row,items:items.map(x=>({product_id:x.product_id,product_name:x.product_name,qty:x.qty,unit_price:x.unit_price,line_total:x.line_total}))});if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();
+    localAudit('CREATE','sales',row.id,`${row.invoice_no} · ${row.customer||row.product_name}`,null,{...row,items:items.map(x=>({product_id:x.product_id,product_name:x.product_name,qty:x.qty,unit_price:x.unit_price,line_total:x.line_total}))});if(initialPaid>0)await addPayment({business_id:state.currentBusinessId,client_request_id:requestId,sale_id:row.id,payment_date:row.date,amount:initialPaid,method:row.payment_method,notes:'Pembayaran awal'});persist();return {ok:true,sale_id:row.id,invoice_no:row.invoice_no,delivery_no:row.delivery_no};
   }
 }
 
@@ -1607,7 +1628,7 @@ function hideAuth(){ $('#authView').classList.add('hidden'); $('#appShell').clas
 
 // -------- Backup / Export helpers --------
 function downloadBlob(content,type,filename){const blob=new Blob([content],{type});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),500)}
-function exportJson(){const b=state.currentBusinessId;const data={version:'1.9.0',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),suppliers:businessData(state.suppliers||[]),purchaseOrders:businessData(state.purchaseOrders||[]),purchaseOrderItems:businessData(state.purchaseOrderItems||[]),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
+function exportJson(){const b=state.currentBusinessId;const data={version:'1.9.1',exported_at:new Date().toISOString(),business:activeBusiness(),products:businessData(state.products),sales:businessData(state.sales),saleItems:businessData(state.saleItems||[]),payments:businessData(state.payments||[]),expenses:businessData(state.expenses),suppliers:businessData(state.suppliers||[]),purchaseOrders:businessData(state.purchaseOrders||[]),purchaseOrderItems:businessData(state.purchaseOrderItems||[]),auditLogs:can('audit')?businessData(state.auditLogs||[]):[]};downloadBlob(JSON.stringify(data,null,2),'application/json',`bizcontrol-backup-${slug(activeBusiness()?.name||'bisnis')}-${today()}.json`);toast('Backup JSON dibuat','success')}
 function csvEscape(v){if(v===null||v===undefined)return'';let x=typeof v==='object'?JSON.stringify(v):String(v);return /[",\n]/.test(x)?'"'+x.replace(/"/g,'""')+'"':x}
 function exportCsv(name,rows){if(!rows?.length){toast('Tidak ada data untuk diexport','error');return}const keys=[...new Set(rows.flatMap(r=>Object.keys(r)))].filter(k=>!['before_data','after_data'].includes(k));const csv='\uFEFF'+[keys.join(','),...rows.map(r=>keys.map(k=>csvEscape(r[k])).join(','))].join('\r\n');downloadBlob(csv,'text/csv;charset=utf-8',`bizcontrol-${name}-${slug(activeBusiness()?.name||'bisnis')}-${today()}.csv`);toast(`CSV ${name} dibuat`,'success')}
 function exportReportYearCsv(){
